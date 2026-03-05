@@ -111,6 +111,55 @@ def _has_complete_scores(new: state_mod.ScoreSnapshot) -> bool:
     )
 
 
+def _unscored_subjective_callout(state: StateModel) -> None:
+    """Print a callout when subjective dimensions are unassessed, clarifying score composition."""
+    dim_scores = state.get("dimension_scores", {})
+    if not dim_scores:
+        return
+
+    total_subj = 0
+    unscored_subj = 0
+    for data in dim_scores.values():
+        if not isinstance(data, dict):
+            continue
+        detectors = data.get("detectors", {})
+        if "subjective_assessment" not in detectors:
+            continue
+        total_subj += 1
+        meta = detectors.get("subjective_assessment", {})
+        if isinstance(meta, dict) and meta.get("placeholder"):
+            unscored_subj += 1
+
+    if unscored_subj == 0 or total_subj == 0:
+        return
+
+    # Get the subjective weight fraction from the scoring breakdown
+    try:
+        import desloppify.engine._scoring.results.core as scoring_mod
+        breakdown = scoring_mod.compute_health_breakdown(dim_scores)
+        subj_pct = round(float(breakdown.get("subjective_fraction", 0.0) or 0.0) * 100)
+    except Exception:
+        subj_pct = 0
+
+    if unscored_subj == total_subj:
+        msg = (
+            f"  ⚠ {unscored_subj} subjective dimension{'s' if unscored_subj != 1 else ''} "
+            f"{'are' if unscored_subj != 1 else 'is'} unassessed (scored as 0). "
+        )
+        if subj_pct:
+            msg += (
+                f"The strict score currently reflects only mechanical detectors "
+                f"({100 - subj_pct}% of score weight). "
+            )
+        msg += "Run `desloppify review --prepare` to assess."
+    else:
+        msg = (
+            f"  ⚠ {unscored_subj} of {total_subj} subjective dimensions unassessed (scored as 0). "
+            f"Strict score is lower than expected until these are reviewed."
+        )
+    print(colorize(msg, "yellow"))
+
+
 def _print_score_guide() -> None:
     print(colorize("  Score guide:", "dim"))
     print(colorize("    overall  = 40% mechanical + 60% subjective (lenient — ignores wontfix)", "dim"))
@@ -269,6 +318,8 @@ def show_score_delta(
         new, prev_overall, prev_objective, prev_strict, prev_verified,
         non_comparable_reason,
     )
+
+    _unscored_subjective_callout(state)
 
     gap = (new.overall or 0) - (new.strict or 0)
     _print_wontfix_gap(stats.get("wontfix", 0), gap)

@@ -242,6 +242,11 @@ def sync_unscored_dimensions(
     """
     ensure_plan_defaults(plan)
     result = UnscoredDimensionSyncResult()
+
+    # Mid-cycle: don't inject unscored dimensions — they'll surface at cycle end.
+    if plan.get("plan_start_scores"):
+        return result
+
     unscored_ids = current_unscored_ids(state)
     stale_ids = _current_stale_ids(state)
     order: list[str] = plan["queue_order"]

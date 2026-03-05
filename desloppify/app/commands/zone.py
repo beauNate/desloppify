@@ -97,8 +97,25 @@ def _zone_set(args: argparse.Namespace):
     except OSError as e:
         raise CommandError(f"could not save config: {e}") from e
     print(f"  Set {normalized} → {zone_value}")
-    print(colorize("  Run `desloppify scan` to apply.", "dim"))
-    print(colorize("  Next command: `desloppify scan`", "dim"))
+
+    # Apply immediately to state
+    try:
+        from desloppify import state as state_mod
+
+        sp = state_path(args)
+        if sp.exists():
+            state = state_mod.load_state(sp)
+            issues = state.get("issues", {})
+            updated = 0
+            for issue in issues.values():
+                if issue.get("file") == normalized:
+                    issue["zone"] = zone_value
+                    updated += 1
+            if updated:
+                state_mod.save_state(state, sp)
+            print(f"  Applied to {updated} issue(s).")
+    except Exception:
+        print(colorize("  (Will apply on next scan.)", "dim"))
 
 
 def _zone_clear(args: argparse.Namespace):
@@ -115,7 +132,24 @@ def _zone_clear(args: argparse.Namespace):
         except OSError as e:
             raise CommandError(f"could not save config: {e}") from e
         print(f"  Cleared override for {normalized}")
-        print(colorize("  Run `desloppify scan` to apply.", "dim"))
-        print(colorize("  Next command: `desloppify scan`", "dim"))
+
+        # Re-stamp matching issues to default zone; next scan will reclassify.
+        try:
+            from desloppify import state as state_mod
+
+            sp = state_path(args)
+            if sp.exists():
+                state = state_mod.load_state(sp)
+                issues = state.get("issues", {})
+                updated = 0
+                for issue in issues.values():
+                    if issue.get("file") == normalized:
+                        issue["zone"] = "production"
+                        updated += 1
+                if updated:
+                    state_mod.save_state(state, sp)
+                print(f"  Re-stamped {updated} issue(s) to 'production' (will reclassify on next scan).")
+        except Exception:
+            print(colorize("  (Will apply on next scan.)", "dim"))
     else:
         print(colorize(f"  No override found for {normalized}", "yellow"))

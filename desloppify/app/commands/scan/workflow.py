@@ -270,6 +270,18 @@ def _expire_provisional_manual_override_assessments(
     return expired
 
 
+def _is_mid_cycle(args: argparse.Namespace) -> bool:
+    """Return True when a plan cycle is in progress (plan_start_scores populated)."""
+    from desloppify.base.exception_sets import PLAN_LOAD_EXCEPTIONS
+    from desloppify.engine.plan import load_plan
+
+    try:
+        plan = load_plan()
+        return bool(plan.get("plan_start_scores"))
+    except PLAN_LOAD_EXCEPTIONS:
+        return False
+
+
 def prepare_scan_runtime(args: argparse.Namespace) -> ScanRuntime:
     """Resolve state/config/language and apply scan-time runtime settings."""
     runtime = command_runtime(args)
@@ -280,9 +292,11 @@ def prepare_scan_runtime(args: argparse.Namespace) -> ScanRuntime:
     config = runtime.config if isinstance(runtime.config, dict) else {}
     lang_config = resolve_lang(args)
     reset_subjective_count = 0
-    expired_manual_override_count = _expire_provisional_manual_override_assessments(
-        state
-    )
+    expired_manual_override_count = 0
+    if not _is_mid_cycle(args):
+        expired_manual_override_count = _expire_provisional_manual_override_assessments(
+            state
+        )
     if getattr(args, "reset_subjective", False):
         reset_subjective_count = _reset_subjective_assessments_for_scan_reset(
             state,

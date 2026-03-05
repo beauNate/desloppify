@@ -106,7 +106,22 @@ def show_scorecard_subjective_measures(state: dict) -> None:
     if not entries:
         return
 
-    print(colorize("  Scorecard dimensions (matches scorecard.png):", "dim"))
+    unscored_subj = [e for e in entries if e.get("subjective") and e.get("placeholder")]
+    total_subj = [e for e in entries if e.get("subjective")]
+    if unscored_subj:
+        if len(unscored_subj) == len(total_subj):
+            print(colorize(
+                f"  Scorecard dimensions — all {len(unscored_subj)} subjective dimensions are [unassessed]:",
+                "yellow",
+            ))
+        else:
+            print(colorize(
+                f"  Scorecard dimensions — {len(unscored_subj)} of {len(total_subj)} "
+                f"subjective dimensions are [unassessed]:",
+                "yellow",
+            ))
+    else:
+        print(colorize("  Scorecard dimensions (matches scorecard.png):", "dim"))
     for entry in entries:
         if entry.get("not_scanned"):
             print(
