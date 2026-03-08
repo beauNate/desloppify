@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import subprocess
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -17,8 +16,13 @@ from desloppify.app.commands.helpers.state import state_path
 from desloppify.base.discovery.file_paths import rel
 from desloppify.base.output.terminal import colorize
 import desloppify.intelligence.narrative.core as narrative_mod
-from desloppify.languages._framework.base.types import FixResult
 
+from .apply_retro import (
+    _cascade_unused_import_cleanup,
+    _SKIP_REASON_LABELS,
+    _print_fix_retro,
+    _warn_uncommitted_changes,
+)
 from .options import _COMMAND_POST_FIX
 
 if TYPE_CHECKING:
@@ -29,7 +33,7 @@ if TYPE_CHECKING:
 def _detect(fixer: FixerConfig, path: Path) -> list[dict]:
     print(colorize(f"\nDetecting {fixer.label}...", "dim"), file=sys.stderr)
     entries = fixer.detect(path)
-    file_count = len(set(e["file"] for e in entries))
+    file_count = len(set(entry["file"] for entry in entries))
     print(
         colorize(
             f"  Found {len(entries)} {fixer.label} across {file_count} files\n", "dim"
@@ -54,12 +58,12 @@ def _print_fix_summary(
             "bold",
         )
     )
-    for r in results[:30]:
-        syms = ", ".join(r["removed"][:5])
-        if len(r["removed"]) > 5:
-            syms += f" (+{len(r['removed']) - 5})"
-        extra = f"  ({r['lines_removed']} lines)" if r.get("lines_removed") else ""
-        print(f"  {rel(r['file'])}{extra}  →  {syms}")
+    for result in results[:30]:
+        symbols = ", ".join(result["removed"][:5])
+        if len(result["removed"]) > 5:
+            symbols += f" (+{len(result['removed']) - 5})"
+        extra = f"  ({result['lines_removed']} lines)" if result.get("lines_removed") else ""
+        print(f"  {rel(result['file'])}{extra}  →  {symbols}")
     if len(results) > 30:
         print(f"  ... and {len(results) - 30} more files")
 
@@ -99,11 +103,10 @@ def _apply_and_report(
     )
     typecheck_cmd = getattr(lang, "typecheck_cmd", "")
     if typecheck_cmd:
-        next_action = (
-            f"Run `{typecheck_cmd}` to verify, then `desloppify scan` to update state"
-        )
+        next_action = f"Run `{typecheck_cmd}` to verify, then `desloppify scan` to update state"
     else:
         next_action = "Run `desloppify scan` to update state"
+
     write_query(
         {
             "command": "autofix",
@@ -122,9 +125,24 @@ def _apply_and_report(
             "narrative": narrative,
         }
     )
-    _print_fix_retro(
-        fixer_name, len(entries), total_items, len(resolved_ids), skip_reasons
-    )
+    _print_fix_retro(fixer_name, len(entries), total_items, len(resolved_ids), skip_reasons)
+
+
+def _resolve_fixer_results(
+    state: dict, results: list[dict], detector: str, fixer_name: str
+) -> list[str]:
+    resolved_ids = []
+    for result in results:
+        result_file = rel(result["file"])
+        for symbol in result["removed"]:
+            issue_id = f"{detector}::{result_file}::{symbol}"
+            if issue_id in state["issues"] and state["issues"][issue_id]["status"] == "open":
+                state["issues"][issue_id]["status"] = "fixed"
+                state["issues"][issue_id]["note"] = (
+                    f"auto-fixed by desloppify autofix {fixer_name}"
+                )
+                resolved_ids.append(issue_id)
+    return resolved_ids
 
 
 def _report_dry_run(
@@ -152,6 +170,7 @@ def _report_dry_run(
             "narrative": narrative,
         }
     )
+
     skipped = len(entries) - total_items
     if skipped > 0:
         print(colorize("\n  ── Review ──", "dim"))
@@ -161,152 +180,25 @@ def _report_dry_run(
                 "dim",
             )
         )
-        for q in [
+        for question in [
             "Do the sample changes look correct? Any false positives?",
             "Are the skipped items truly unfixable, or could the fixer be improved?",
             "Ready to run without --dry-run? (git push first!)",
         ]:
-            print(colorize(f"  - {q}", "dim"))
+            print(colorize(f"  - {question}", "dim"))
 
-
-def _resolve_fixer_results(
-    state: dict, results: list[dict], detector: str, fixer_name: str
-) -> list[str]:
-    resolved_ids = []
-    for r in results:
-        rfile = rel(r["file"])
-        for sym in r["removed"]:
-            fid = f"{detector}::{rfile}::{sym}"
-            if fid in state["issues"] and state["issues"][fid]["status"] == "open":
-                state["issues"][fid]["status"] = "fixed"
-                state["issues"][fid]["note"] = (
-                    f"auto-fixed by desloppify autofix {fixer_name}"
-                )
-                resolved_ids.append(fid)
-    return resolved_ids
-
-
-def _warn_uncommitted_changes() -> None:
-    try:
-        r = subprocess.run(
-            ["git", "status", "--porcelain"], capture_output=True, text=True, timeout=5
-        )
-        if r.stdout.strip():
-            print(
-                colorize(
-                    "\n  ⚠ You have uncommitted changes. Consider running:", "yellow"
-                )
-            )
-            print(
-                colorize(
-                    "    git add -A && git commit -m 'pre-fix checkpoint' && git push",
-                    "yellow",
-                )
-            )
-            print(
-                colorize(
-                    "    This ensures you can revert if the fixer produces unexpected results.\n",
-                    "dim",
-                )
-            )
-    except (OSError, subprocess.TimeoutExpired):
-        return
-
-
-def _cascade_unused_import_cleanup(
-    path: Path,
-    state: dict,
-    _prev_score: float,
-    dry_run: bool,
-    *,
-    lang: LangRun | None = None,
-) -> None:
-    if not lang or "unused-imports" not in getattr(lang, "fixers", {}):
-        print(colorize("  Cascade: no unused-imports fixer for this language", "dim"))
-        return
-
-    fixer = lang.fixers["unused-imports"]
-    print(colorize("\n  Running cascading import cleanup...", "dim"), file=sys.stderr)
-    entries = fixer.detect(path)
-    if not entries:
-        print(colorize("  Cascade: no orphaned imports found", "dim"))
-        return
-
-    raw = fixer.fix(entries, dry_run=dry_run)
-    if isinstance(raw, FixResult):
-        results = raw.entries
-    else:
-        results = raw
-
-    if not results:
-        print(colorize("  Cascade: no orphaned imports found", "dim"))
-        return
-    n_removed = sum(len(r["removed"]) for r in results)
-    n_lines = sum(r["lines_removed"] for r in results)
-    print(
-        colorize(
-            f"  Cascade: removed {n_removed} now-orphaned imports "
-            f"from {len(results)} files ({n_lines} lines)",
-            "green",
-        )
-    )
-    resolved = _resolve_fixer_results(
-        state, results, fixer.detector, "cascade-unused-imports"
-    )
-    if resolved:
-        print(f"  Cascade: auto-resolved {len(resolved)} import issues")
 
 _COMMAND_POST_FIX["debug-logs"] = _cascade_unused_import_cleanup
 _COMMAND_POST_FIX["dead-useeffect"] = _cascade_unused_import_cleanup
 
-_SKIP_REASON_LABELS = {
-    "rest_element": "has ...rest (removing changes rest contents)",
-    "array_destructuring": "array destructuring (positional — can't remove)",
-    "function_param": "function/callback parameter (use `fix unused-params` to prefix with _)",
-    "standalone_var_with_call": "standalone variable with function call (may have side effects)",
-    "no_destr_context": "destructuring member without context",
-    "out_of_range": "line out of range (stale data?)",
-    "other": "other patterns (needs manual review)",
-}
 
-
-def _print_fix_retro(
-    fixer_name: str,
-    detected: int,
-    fixed: int,
-    resolved: int,
-    skip_reasons: dict[str, int] | None = None,
-):
-    skipped = detected - fixed
-    print(colorize("\n  ── Post-fix check ──", "dim"))
-    print(
-        colorize(
-            f"  Fixed {fixed}/{detected} ({skipped} skipped, {resolved} issues resolved)",
-            "dim",
-        )
-    )
-    if skip_reasons and skipped > 0:
-        print(colorize(f"\n  Skip reasons ({skipped} total):", "dim"))
-        for reason, count in sorted(skip_reasons.items(), key=lambda x: -x[1]):
-            print(
-                colorize(
-                    f"    {count:4d}  {_SKIP_REASON_LABELS.get(reason, reason)}", "dim"
-                )
-            )
-        print()
-    checklist = [
-        "Run your language typecheck/build command — does it still build?",
-        "Spot-check a few changed files — do the edits look correct?",
-    ]
-    if skipped > 0 and not skip_reasons:
-        checklist.append(
-            f"{skipped} items were skipped. Should the fixer handle more patterns?"
-        )
-    checklist += [
-        "Run `desloppify scan` to update state and refresh issues.",
-        "Are there cascading effects? (e.g., removing vars may orphan imports)",
-        "`git diff --stat` — review before committing. Anything surprising?",
-    ]
-    print(colorize("  Checklist:", "dim"))
-    for i, item in enumerate(checklist, 1):
-        print(colorize(f"  {i}. {item}", "dim"))
+__all__ = [
+    "_SKIP_REASON_LABELS",
+    "_apply_and_report",
+    "_detect",
+    "_print_fix_summary",
+    "_print_fix_retro",
+    "_report_dry_run",
+    "_resolve_fixer_results",
+    "_warn_uncommitted_changes",
+]

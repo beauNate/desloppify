@@ -15,6 +15,11 @@ from desloppify.engine import plan as plan_mod
 from desloppify.engine._work_queue import core as work_queue_core_mod
 from desloppify.engine._work_queue.helpers import is_subjective_queue_item
 from desloppify.engine._work_queue.plan_order import collapse_clusters
+from desloppify.app.commands.helpers.queue_progress_render import (
+    format_plan_delta,
+    format_queue_block,
+    format_queue_headline,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -169,106 +174,6 @@ def plan_aware_queue_breakdown(
         focus_cluster_count=focus_cluster_count,
         focus_cluster_total=focus_cluster_total,
     )
-
-
-# ---------------------------------------------------------------------------
-# Formatting helpers — single source of truth for queue display
-# ---------------------------------------------------------------------------
-
-def format_plan_delta(live: float, frozen: float) -> str:
-    """Format plan-start vs live delta, or '' if below threshold."""
-    if abs(live - frozen) < 0.05:
-        return ""
-    delta = round(live - frozen, 1)
-    return f"{'+' if delta > 0 else ''}{delta:.1f}"
-
-
-def format_queue_headline(breakdown: QueueBreakdown) -> str:
-    """The one-line Queue summary. Same format everywhere.
-
-    Examples::
-
-        Queue: 1934 items (292 planned · 23 skipped)
-        Queue: 1934 items
-    """
-    n = breakdown.queue_total
-    label = f"Queue: {n} item{'s' if n != 1 else ''}"
-
-    # Parenthesized segments
-    segments: list[str] = []
-    if breakdown.workflow > 0:
-        segments.append(f"{breakdown.workflow} planning step{'s' if breakdown.workflow != 1 else ''}")
-    if breakdown.plan_ordered > 0:
-        segments.append(f"{breakdown.plan_ordered} planned")
-    if breakdown.skipped > 0:
-        segments.append(f"{breakdown.skipped} skipped")
-    if breakdown.subjective > 0:
-        segments.append(f"{breakdown.subjective} subjective")
-    if segments:
-        sep = " \u00b7 "
-        detail = sep.join(segments)
-        return f"{label} ({detail})"
-    return label
-
-
-def format_queue_block(
-    breakdown: QueueBreakdown,
-    *,
-    frozen_score: float | None = None,
-    live_score: float | None = None,
-) -> list[tuple[str, str]]:
-    """Full queue block: focus banner + queue line + contextual hints.
-
-    Returns a list of ``(text, style)`` pairs ready for ``colorize()``.
-    """
-    lines: list[tuple[str, str]] = []
-
-    # Focus banner (prominent, separate)
-    if breakdown.focus_cluster:
-        focus_line = (
-            f"  Focus: `{breakdown.focus_cluster}` "
-            f"\u2014 {breakdown.focus_cluster_count}/{breakdown.focus_cluster_total}"
-            f" items remaining"
-        )
-        lines.append((focus_line, "cyan"))
-
-    # Score line: show both frozen plan-start and live score when available
-    if frozen_score is not None:
-        delta_str = format_plan_delta(live_score, frozen_score) if live_score is not None else ""
-        if delta_str:
-            lines.append((
-                f"  Score: strict {live_score:.1f}/100 (plan start: {frozen_score:.1f}, {delta_str})",
-                "cyan",
-            ))
-        else:
-            lines.append((
-                f"  Score (frozen at plan start): strict {frozen_score:.1f}/100",
-                "cyan",
-            ))
-
-    # Queue headline — always the same
-    lines.append((f"  {format_queue_headline(breakdown)}", "bold"))
-
-    # Contextual hints (dim)
-    if breakdown.focus_cluster:
-        lines.append((
-            f"  Unfocus: `desloppify plan focus --clear`"
-            f" \u00b7 Cluster details: `desloppify next --cluster {breakdown.focus_cluster} --count 10`",
-            "dim",
-        ))
-    elif breakdown.plan_ordered > 0 or breakdown.skipped > 0:
-        lines.append((
-            "  Details: `desloppify plan queue`"
-            " \u00b7 Skip: `desloppify plan skip <id>`",
-            "dim",
-        ))
-    else:
-        lines.append((
-            "  Start planning: `desloppify plan`",
-            "dim",
-        ))
-
-    return lines
 
 
 def get_plan_start_strict(plan: dict | None) -> float | None:
