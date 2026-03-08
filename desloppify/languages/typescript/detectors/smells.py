@@ -17,16 +17,18 @@ from desloppify.base.discovery.source import (
 )
 from desloppify.base.output.fallbacks import log_best_effort_failure
 from desloppify.base.discovery.paths import get_project_root
-from desloppify.languages.typescript.detectors._smell_detectors import (
+from desloppify.languages.typescript.detectors._smell_detectors_flow import (
     _detect_async_no_await,
-    _detect_catch_return_default,
-    _detect_dead_useeffects,
     _detect_empty_if_chains,
     _detect_error_no_throw,
     _detect_high_cyclomatic_complexity,
     _detect_monster_functions,
     _detect_nested_closures,
     _detect_stub_functions,
+)
+from desloppify.languages.typescript.detectors._smell_detectors_safety import (
+    _detect_catch_return_default,
+    _detect_dead_useeffects,
     _detect_swallowed_errors,
     _detect_switch_no_default,
     _detect_window_globals,

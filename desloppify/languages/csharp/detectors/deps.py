@@ -13,34 +13,20 @@ from pathlib import Path
 
 from desloppify.base.discovery.file_paths import resolve_path
 from desloppify.engine.detectors.graph import finalize_graph
-from desloppify.languages.csharp.detectors.deps_support import (
-    build_graph_from_edge_map as _build_graph_from_edge_map,
-)
-from desloppify.languages.csharp.detectors.deps_support import (
+from desloppify.languages.csharp.detectors.deps_support_metadata import (
     expand_namespace_matches as _expand_namespace_matches,
-)
-from desloppify.languages.csharp.detectors.deps_support import (
-    find_csproj_files as _find_csproj_files,
-)
-from desloppify.languages.csharp.detectors.deps_support import (
-    map_file_to_project as _map_file_to_project,
-)
-from desloppify.languages.csharp.detectors.deps_support import (
-    parse_csproj_references as _parse_csproj_references,
-)
-from desloppify.languages.csharp.detectors.deps_support import (
     parse_file_metadata as _parse_file_metadata,
 )
-from desloppify.languages.csharp.detectors.deps_support import (
+from desloppify.languages.csharp.detectors.deps_support_projects import (
+    find_csproj_files as _find_csproj_files,
+    map_file_to_project as _map_file_to_project,
+    parse_csproj_references as _parse_csproj_references,
     parse_project_assets_references as _parse_project_assets_references,
 )
-from desloppify.languages.csharp.detectors.deps_support import (
+from desloppify.languages.csharp.detectors.deps_support_render import (
+    build_graph_from_edge_map as _build_graph_from_edge_map,
     render_cycles_for_graph as _render_cycles_for_graph,
-)
-from desloppify.languages.csharp.detectors.deps_support import (
     render_deps_for_graph as _render_deps_for_graph,
-)
-from desloppify.languages.csharp.detectors.deps_support import (
     safe_resolve_graph_path as _safe_resolve_graph_path,
 )
 from desloppify.languages.csharp.extractors import (

@@ -48,21 +48,37 @@ def is_parse_cache_enabled() -> bool:
     return _is_enabled()
 
 
+def _build_treesitter_specs() -> dict[str, TreeSitterLangSpec]:
+    """Build the TREESITTER_SPECS dict from the three spec modules."""
+    from . import _specs_compiled as _sc, _specs_functional as _sf, _specs_scripting as _ss
+
+    return {
+        "go": _sc.GO_SPEC, "rust": _sc.RUST_SPEC, "java": _sc.JAVA_SPEC,
+        "kotlin": _sc.KOTLIN_SPEC, "csharp": _sc.CSHARP_SPEC,
+        "swift": _sc.SWIFT_SPEC, "php": _sc.PHP_SPEC, "dart": _sc.DART_SPEC,
+        "c": _sc.C_SPEC, "cpp": _sc.CPP_SPEC, "scala": _sc.SCALA_SPEC,
+        "elixir": _sf.ELIXIR_SPEC, "erlang": _sf.ERLANG_SPEC,
+        "fsharp": _sf.FSHARP_SPEC, "haskell": _sf.HASKELL_SPEC,
+        "ocaml": _sf.OCAML_SPEC, "clojure": _sf.CLOJURE_SPEC,
+        "ruby": _ss.RUBY_SPEC, "javascript": _ss.JS_SPEC,
+        "typescript": _ss.TYPESCRIPT_SPEC, "bash": _ss.BASH_SPEC,
+        "lua": _ss.LUA_SPEC, "perl": _ss.PERL_SPEC, "zig": _ss.ZIG_SPEC,
+        "nim": _ss.NIM_SPEC, "powershell": _ss.POWERSHELL_SPEC,
+        "gdscript": _ss.GDSCRIPT_SPEC, "r": _ss.R_SPEC,
+    }
+
+
 def get_spec(language: str) -> TreeSitterLangSpec | None:
     """Return tree-sitter spec for a language key, if configured."""
     key = str(language or "").strip().lower()
     if not key:
         return None
-    from ._specs import TREESITTER_SPECS
-
-    return TREESITTER_SPECS.get(key)
+    return _build_treesitter_specs().get(key)
 
 
 def list_specs() -> dict[str, TreeSitterLangSpec]:
     """Return a shallow copy of the public tree-sitter spec registry."""
-    from ._specs import TREESITTER_SPECS
-
-    return dict(TREESITTER_SPECS)
+    return dict(_build_treesitter_specs())
 
 
 @dataclass(frozen=True)
@@ -130,9 +146,16 @@ def __getattr__(name: str):  # noqa: N807
         from desloppify.languages._framework.treesitter import phases as phases_mod
 
         return getattr(phases_mod, name)
-    if name == "TREESITTER_SPECS" or name.endswith("_SPEC"):
-        from desloppify.languages._framework.treesitter import _specs as specs_mod
+    if name == "TREESITTER_SPECS":
+        return _build_treesitter_specs()
+    if name.endswith("_SPEC"):
+        from desloppify.languages._framework.treesitter import (
+            _specs_compiled as _sc,
+            _specs_functional as _sf,
+            _specs_scripting as _ss,
+        )
 
-        if hasattr(specs_mod, name):
-            return getattr(specs_mod, name)
+        for _mod in (_sc, _sf, _ss):
+            if hasattr(_mod, name):
+                return getattr(_mod, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

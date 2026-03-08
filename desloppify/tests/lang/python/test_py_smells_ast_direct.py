@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import ast
 
-import desloppify.languages.python.detectors.smells_ast._node_detectors as node_detectors
+import desloppify.languages.python.detectors.smells_ast._node_detectors_basic as node_detectors
 
 
 def test_detect_dead_function_flags_pass_only_function():

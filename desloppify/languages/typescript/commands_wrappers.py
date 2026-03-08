@@ -166,11 +166,11 @@ def cmd_cycles(args: argparse.Namespace) -> None:
 
 
 def cmd_patterns(args: argparse.Namespace) -> None:
-    _run_detector_cmd(args, ".detectors.patterns", "cmd_patterns")
+    _run_detector_cmd(args, ".detectors.patterns_cli", "cmd_patterns")
 
 
 def cmd_react(args: argparse.Namespace) -> None:
-    _run_detector_cmd(args, ".detectors.react", "cmd_react")
+    _run_detector_cmd(args, ".detectors.react_cli", "cmd_react")
 
 
 def cmd_coupling(args: argparse.Namespace) -> None:

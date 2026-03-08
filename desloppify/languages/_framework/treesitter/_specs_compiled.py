@@ -4,17 +4,17 @@ from __future__ import annotations
 
 from desloppify.languages._framework.treesitter import TreeSitterLangSpec
 
-from ._import_resolvers import (
+from ._import_resolvers_backend import (
     resolve_csharp_import,
     resolve_cxx_include,
     resolve_dart_import,
     resolve_go_import,
     resolve_java_import,
     resolve_kotlin_import,
-    resolve_php_import,
     resolve_rust_import,
     resolve_scala_import,
 )
+from ._import_resolvers_scripts import resolve_php_import
 
 GO_SPEC = TreeSitterLangSpec(
     grammar="go",

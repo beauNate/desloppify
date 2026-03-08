@@ -5,13 +5,17 @@ from __future__ import annotations
 import ast
 from dataclasses import dataclass
 
-from desloppify.languages.python.detectors.smells_ast._node_detectors import (
+from desloppify.languages.python.detectors.smells_ast._node_detectors_basic import (
     _detect_dead_functions,
     _detect_deferred_imports,
-    _detect_high_cyclomatic_complexity,
     _detect_inline_classes,
-    _detect_lru_cache_mutable,
     _detect_monster_functions,
+)
+from desloppify.languages.python.detectors.smells_ast._node_detectors_complexity import (
+    _detect_high_cyclomatic_complexity,
+    _detect_lru_cache_mutable,
+)
+from desloppify.languages.python.detectors.smells_ast._node_detectors_nesting import (
     _detect_mutable_ref_hack,
     _detect_nested_closures,
 )

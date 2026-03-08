@@ -1,16 +1,20 @@
 """Tests for desloppify.languages.typescript.detectors._smell_helpers — string processing helpers."""
 
-from desloppify.languages.typescript.detectors._smell_detectors import (
+from desloppify.languages.typescript.detectors._smell_detectors_core import (
+    _find_function_start,
+)
+from desloppify.languages.typescript.detectors._smell_detectors_flow import (
     _detect_async_no_await,
-    _detect_catch_return_default,
-    _detect_dead_useeffects,
     _detect_empty_if_chains,
     _detect_error_no_throw,
     _detect_monster_functions,
     _detect_stub_functions,
+)
+from desloppify.languages.typescript.detectors._smell_detectors_safety import (
+    _detect_catch_return_default,
+    _detect_dead_useeffects,
     _detect_swallowed_errors,
     _detect_window_globals,
-    _find_function_start,
 )
 from desloppify.languages.typescript.detectors._smell_helpers import (
     _code_text,

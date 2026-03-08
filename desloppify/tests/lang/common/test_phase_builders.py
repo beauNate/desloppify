@@ -295,8 +295,8 @@ def test_all_treesitter_phases_returns_empty_for_unknown_spec():
         "desloppify.languages._framework.treesitter.is_available",
         return_value=True,
     ), patch(
-        "desloppify.languages._framework.treesitter._specs.TREESITTER_SPECS",
-        {},
+        "desloppify.languages._framework.treesitter.get_spec",
+        return_value=None,
     ):
         from desloppify.languages._framework.treesitter.phases import (
             all_treesitter_phases,
@@ -315,8 +315,8 @@ def test_all_treesitter_phases_includes_imports_when_import_query():
         "desloppify.languages._framework.treesitter.is_available",
         return_value=True,
     ), patch(
-        "desloppify.languages._framework.treesitter._specs.TREESITTER_SPECS",
-        {"test_lang": mock_spec},
+        "desloppify.languages._framework.treesitter.get_spec",
+        return_value=mock_spec,
     ):
         from desloppify.languages._framework.treesitter.phases import (
             all_treesitter_phases,
@@ -340,8 +340,8 @@ def test_all_treesitter_phases_excludes_imports_when_no_import_query():
         "desloppify.languages._framework.treesitter.is_available",
         return_value=True,
     ), patch(
-        "desloppify.languages._framework.treesitter._specs.TREESITTER_SPECS",
-        {"test_lang": mock_spec},
+        "desloppify.languages._framework.treesitter.get_spec",
+        return_value=mock_spec,
     ):
         from desloppify.languages._framework.treesitter.phases import (
             all_treesitter_phases,

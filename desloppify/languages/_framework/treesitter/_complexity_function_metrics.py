@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from ._cache import _PARSE_CACHE
-from ._complexity_shared import ComputeFn, _ensure_parser
+from ._complexity_nesting import ComputeFn, _ensure_parser
 
 if TYPE_CHECKING:
     from desloppify.languages._framework.treesitter import TreeSitterLangSpec

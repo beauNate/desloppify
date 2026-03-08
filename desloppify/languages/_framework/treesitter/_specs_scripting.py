@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from desloppify.languages._framework.treesitter import TreeSitterLangSpec
 
-from ._import_resolvers import (
+from ._import_resolvers_functional import resolve_zig_import
+from ._import_resolvers_scripts import (
     resolve_bash_source,
     resolve_js_import,
     resolve_lua_import,
     resolve_perl_import,
     resolve_r_import,
     resolve_ruby_import,
-    resolve_zig_import,
 )
 
 RUBY_SPEC = TreeSitterLangSpec(

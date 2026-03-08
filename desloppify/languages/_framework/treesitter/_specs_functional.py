@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from desloppify.languages._framework.treesitter import TreeSitterLangSpec
 
-from ._import_resolvers import (
+from ._import_resolvers_functional import (
     resolve_elixir_import,
     resolve_erlang_include,
     resolve_fsharp_import,

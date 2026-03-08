@@ -43,9 +43,11 @@ from desloppify.languages.typescript.detectors import deps as deps_detector_mod
 from desloppify.languages.typescript.detectors import exports as exports_detector_mod
 from desloppify.languages.typescript.detectors import facade as facade_detector_mod
 from desloppify.languages.typescript.detectors import logs as logs_detector_mod
-from desloppify.languages.typescript.detectors import patterns as patterns_detector_mod
+from desloppify.languages.typescript.detectors import patterns_analysis as patterns_detector_mod
 from desloppify.languages.typescript.detectors import props as props_detector_mod
-from desloppify.languages.typescript.detectors import react as react_detector_mod
+from desloppify.languages.typescript.detectors import react_context as react_context_mod
+from desloppify.languages.typescript.detectors import react_hook_bloat as react_hook_bloat_mod
+from desloppify.languages.typescript.detectors import react_state_sync as react_state_sync_mod
 from desloppify.languages.typescript.detectors import smells as smells_detector_mod
 from desloppify.languages.typescript.detectors import unused as unused_detector_mod
 from desloppify.languages.typescript.extractors_components import (
@@ -687,7 +689,7 @@ def phase_smells(path: Path, lang: LangRuntimeContract) -> tuple[list[Issue], di
     results = make_smell_issues(smell_entries, log)
 
     # TS-specific: React state sync anti-patterns
-    react_entries, total_effects = react_detector_mod.detect_state_sync(path)
+    react_entries, total_effects = react_state_sync_mod.detect_state_sync(path)
     for e in react_entries:
         setter_str = ", ".join(e["setters"])
         results.append(
@@ -705,7 +707,7 @@ def phase_smells(path: Path, lang: LangRuntimeContract) -> tuple[list[Issue], di
         log(f"         react: {len(react_entries)} state sync anti-patterns")
 
     # TS-specific: Context provider nesting depth
-    nesting_entries, _ = react_detector_mod.detect_context_nesting(path)
+    nesting_entries, _ = react_context_mod.detect_context_nesting(path)
     for e in nesting_entries:
         providers_str = " → ".join(e["providers"][:5])
         results.append(
@@ -723,7 +725,7 @@ def phase_smells(path: Path, lang: LangRuntimeContract) -> tuple[list[Issue], di
         log(f"         react: {len(nesting_entries)} deep provider nesting")
 
     # TS-specific: Hook return bloat
-    hook_entries, _ = react_detector_mod.detect_hook_return_bloat(path)
+    hook_entries, _ = react_hook_bloat_mod.detect_hook_return_bloat(path)
     for e in hook_entries:
         results.append(
             make_issue(
@@ -744,7 +746,7 @@ def phase_smells(path: Path, lang: LangRuntimeContract) -> tuple[list[Issue], di
         log(f"         react: {len(hook_entries)} bloated hook returns")
 
     # TS-specific: Boolean state explosion
-    bool_entries, _ = react_detector_mod.detect_boolean_state_explosion(path)
+    bool_entries, _ = react_hook_bloat_mod.detect_boolean_state_explosion(path)
     for e in bool_entries:
         states_str = ", ".join(e["states"][:5])
         results.append(

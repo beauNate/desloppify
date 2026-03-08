@@ -17,7 +17,7 @@ from desloppify.languages.typescript.detectors.logs import (
     detect_logs,
     detect_logs_result,
 )
-from desloppify.languages.typescript.detectors.patterns import (
+from desloppify.languages.typescript.detectors.patterns_analysis import (
     detect_pattern_anomalies,
     detect_pattern_anomalies_result,
 )

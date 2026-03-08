@@ -138,7 +138,7 @@ def test_phase_coupling_passes_orphaned_options(monkeypatch, tmp_path: Path):
         lambda _graph: ([], 0),
     )
     monkeypatch.setattr(
-        "desloppify.languages.typescript.detectors.patterns.detect_pattern_anomalies_result",
+        "desloppify.languages.typescript.detectors.patterns_analysis.detect_pattern_anomalies_result",
         lambda _path: SimpleNamespace(entries=[], population_size=0),
     )
     monkeypatch.setattr(

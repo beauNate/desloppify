@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import ast
 
-from desloppify.languages.python.detectors.mutable_state import (
+from desloppify.languages.python.detectors.mutable_state_ast import (
     _collect_module_level_mutables,
 )
 

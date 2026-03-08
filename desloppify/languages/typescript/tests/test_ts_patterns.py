@@ -4,11 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from desloppify.languages.typescript.detectors.patterns import (
-    PATTERN_FAMILIES,
+from desloppify.languages.typescript.detectors.patterns_analysis import (
     _build_census,
     detect_pattern_anomalies,
 )
+from desloppify.languages.typescript.detectors.patterns_catalog import PATTERN_FAMILIES
 
 
 @pytest.fixture(autouse=True)

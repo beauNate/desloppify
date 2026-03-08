@@ -30,11 +30,13 @@ def _make_structural_phase(treesitter_spec=None) -> DetectorPhase:
         from desloppify.languages._framework.treesitter import is_available
 
         if is_available():
-            from desloppify.languages._framework.treesitter._complexity import (
-                make_callback_depth_compute,
+            from desloppify.languages._framework.treesitter._complexity_function_metrics import (
                 make_cyclomatic_complexity_compute,
                 make_long_functions_compute,
                 make_max_params_compute,
+            )
+            from desloppify.languages._framework.treesitter._complexity_nesting import (
+                make_callback_depth_compute,
                 make_nesting_depth_compute,
             )
 

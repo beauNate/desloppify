@@ -42,7 +42,7 @@ import desloppify.intelligence.narrative.signals as narrative_signals_mod
 import desloppify.intelligence.review.context_holistic.selection_contexts as selection_contexts_mod
 import desloppify.intelligence.review.selection_cache as review_selection_cache_mod
 import desloppify.languages._framework.scoped_store as scoped_store_mod
-import desloppify.languages.csharp.detectors.deps_support as csharp_deps_support_mod
+import desloppify.languages.csharp.detectors.deps_support_projects as csharp_deps_support_mod
 import desloppify.languages.python.detectors.deps_dynamic as py_deps_dynamic_mod
 import desloppify.languages.python.detectors.deps_resolution as py_deps_resolution_mod
 import desloppify.languages.python.detectors.smells_runtime as py_smells_runtime_mod

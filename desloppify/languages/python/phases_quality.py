@@ -14,7 +14,7 @@ from desloppify.languages.python.detectors import (
     import_linter_adapter as import_linter_adapter_mod,
 )
 from desloppify.languages.python.detectors import (
-    mutable_state as mutable_state_detector_mod,
+    mutable_state_scan as mutable_state_detector_mod,
 )
 from desloppify.languages.python.detectors import smells as smells_detector_mod
 from desloppify.languages.python.detectors.ruff_smells import detect_with_ruff_smells
