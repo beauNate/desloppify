@@ -12,7 +12,7 @@ from .._stage_validation import (
     _cluster_file_overlaps,
     _clusters_with_directory_scatter,
     _clusters_with_high_step_ratio,
-    _shallow_steps,
+    _underspecified_steps,
     _steps_missing_issue_refs,
     _steps_with_bad_paths,
     _steps_with_vague_detail,
@@ -101,9 +101,9 @@ def validate_stage(
     if stage == "enrich":
         if "enrich" not in stages:
             return False, "Enrich stage not recorded."
-        shallow = _shallow_steps(plan)
-        if shallow:
-            total = sum(n for _, n, _ in shallow)
+        underspec = _underspecified_steps(plan)
+        if underspec:
+            total = sum(n for _, n, _ in underspec)
             return False, f"{total} step(s) still lack detail or issue_refs."
         bad_paths = _steps_with_bad_paths(plan, repo_root)
         if bad_paths:
@@ -135,9 +135,9 @@ def validate_stage(
         if len(report) < 100:
             return False, f"Sense-check report too short ({len(report)} chars, need 100+)."
         # Re-run all enrich-level checks (subagents may have introduced issues)
-        shallow = _shallow_steps(plan)
-        if shallow:
-            total = sum(n for _, n, _ in shallow)
+        underspec = _underspecified_steps(plan)
+        if underspec:
+            total = sum(n for _, n, _ in underspec)
             return False, f"{total} step(s) still lack detail or issue_refs after sense-check."
         bad_paths = _steps_with_bad_paths(plan, repo_root)
         if bad_paths:

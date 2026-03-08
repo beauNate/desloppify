@@ -16,7 +16,10 @@ from desloppify.engine._work_queue.core import (
     QueueBuildOptions,
     build_work_queue,
 )
-from desloppify.engine._work_queue.plan_order import collapse_clusters
+from desloppify.engine._work_queue.plan_order import (
+    collapse_clusters,
+    filter_cluster_focus,
+)
 from desloppify.engine.plan import compute_new_issue_ids, load_plan
 
 
@@ -200,10 +203,13 @@ def cmd_plan_queue(args: argparse.Namespace) -> None:
             include_subjective=True,
             plan=plan,
             include_skipped=include_skipped,
-            cluster=effective_cluster,
         ),
     )
     items = queue.get("items", [])
+
+    # View-layer: apply cluster focus after canonical queue is built
+    if effective_cluster:
+        items = filter_cluster_focus(items, plan, effective_cluster)
     # Collapse auto-clusters into display meta-items
     if plan and not effective_cluster and not plan.get("active_cluster"):
         items = collapse_clusters(items, plan)

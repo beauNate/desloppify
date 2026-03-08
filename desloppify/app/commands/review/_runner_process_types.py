@@ -23,6 +23,8 @@ class CodexBatchRunnerDeps:
     retry_backoff_seconds: float = 0.0
     sleep_fn: object = time.sleep
     validate_output_fn: Callable[[Path], bool] | None = None
+    output_validation_grace_seconds: float = 2.0
+    output_validation_poll_seconds: float = 0.1
 
 
 @dataclass(frozen=True)

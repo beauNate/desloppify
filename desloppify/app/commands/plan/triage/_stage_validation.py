@@ -235,8 +235,12 @@ def _require_organize_stage_for_enrich(stages: dict) -> bool:
     return False
 
 
-def _shallow_steps(plan: dict) -> list[tuple[str, int, int]]:
-    """Return (cluster_name, bare_count, total_count) for clusters with steps lacking detail."""
+def _underspecified_steps(plan: dict) -> list[tuple[str, int, int]]:
+    """Return (cluster_name, bare_count, total_count) for steps missing detail or issue_refs.
+
+    A step is underspecified if it lacks *either* detail or issue_refs — both
+    are required for executor-readiness.
+    """
     results: list[tuple[str, int, int]] = []
     for name, cluster in plan.get("clusters", {}).items():
         if cluster.get("auto") or not cluster.get("issue_ids"):
@@ -246,7 +250,7 @@ def _shallow_steps(plan: dict) -> list[tuple[str, int, int]]:
             continue
         bare = sum(
             1 for s in steps
-            if isinstance(s, dict) and not s.get("detail") and not s.get("issue_refs")
+            if isinstance(s, dict) and (not s.get("detail") or not s.get("issue_refs"))
         )
         if bare > 0:
             results.append((name, bare, len(steps)))
@@ -406,6 +410,7 @@ def _steps_with_vague_detail(plan: dict, repo_root: Path) -> list[tuple[str, int
                 continue
             detail = step.get("detail", "")
             if not detail:
+                results.append((name, i + 1, step.get("title", "(no title)")))
                 continue
             has_path = bool(_PATH_RE.search(detail))
             if len(detail) < 80 and not has_path:
@@ -467,11 +472,11 @@ def _require_enrich_stage_for_complete(
         # Fall through to existing organize requirement
         return _require_organize_stage_for_complete(plan=plan, meta=meta, stages=stages)
 
-    shallow = _shallow_steps(plan)
-    if shallow:
+    underspec = _underspecified_steps(plan)
+    if underspec:
         print(colorize("  Cannot complete: enrich stage not done.", "red"))
-        print(colorize(f"  {len(shallow)} cluster(s) have steps without detail or issue_refs:", "yellow"))
-        for name, bare, total in shallow[:5]:
+        print(colorize(f"  {len(underspec)} cluster(s) have underspecified steps (missing detail or issue_refs):", "yellow"))
+        for name, bare, total in underspec[:5]:
             print(colorize(f"    {name}: {bare}/{total} steps need enrichment", "yellow"))
         print(colorize(
             '  Fix: desloppify plan cluster update <name> --update-step N --detail "sub-details"',
@@ -501,12 +506,12 @@ def _auto_confirm_enrich_for_complete(
         print(colorize("  Or pass --attestation to auto-confirm enrich inline.", "dim"))
         return False
 
-    # Re-validate shallow steps at auto-confirm time
-    shallow = _shallow_steps(plan)
-    if shallow:
-        total_bare = sum(n for _, n, _ in shallow)
+    # Re-validate underspecified steps at auto-confirm time
+    underspec = _underspecified_steps(plan)
+    if underspec:
+        total_bare = sum(n for _, n, _ in underspec)
         print(colorize(f"  Cannot auto-confirm enrich: {total_bare} step(s) still lack detail or issue_refs.", "red"))
-        for name, bare, total in shallow[:5]:
+        for name, bare, total in underspec[:5]:
             print(colorize(f"    {name}: {bare}/{total} steps", "yellow"))
         print(colorize('  Fix: desloppify plan cluster update <name> --update-step N --detail "sub-details"', "dim"))
         return False
@@ -871,7 +876,7 @@ __all__ = [
     "_require_reflect_stage_for_organize",
     "_resolve_completion_strategy",
     "_resolve_confirm_existing_strategy",
-    "_shallow_steps",
+    "_underspecified_steps",
     "_steps_missing_issue_refs",
     "_steps_referencing_skipped_issues",
     "_steps_with_bad_paths",

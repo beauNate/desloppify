@@ -132,10 +132,10 @@ def group_issues_into_observe_batches(
 
 
 def open_review_ids_from_state(state: dict) -> set[str]:
-    """Return IDs of all open review/concerns issues in state."""
+    """Return IDs of open review/concerns issues (excludes subjective_review placeholders)."""
     return {
         fid for fid, f in state.get("issues", {}).items()
-        if f.get("status") == "open" and f.get("detector") in _REVIEW_DETECTORS
+        if f.get("status") == "open" and f.get("detector") in ("review", "concerns")
     }
 
 def triage_coverage(

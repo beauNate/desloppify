@@ -35,7 +35,7 @@ from ._stage_validation import (
     _organize_report_or_error,
     _require_organize_stage_for_enrich,
     _require_reflect_stage_for_organize,
-    _shallow_steps,
+    _underspecified_steps,
     _steps_with_bad_paths,
     _steps_without_effort,
     _unclustered_review_issues_or_error,
@@ -435,13 +435,13 @@ def _cmd_stage_enrich(
             print(colorize("  Or pass --attestation to auto-confirm organize inline.", "dim"))
             return
 
-    # Check shallow steps — block if any steps lack detail or issue_refs
-    shallow = _shallow_steps(plan)
-    total_bare = sum(n for _, n, _ in shallow)
+    # Check underspecified steps — block if any steps lack detail or issue_refs
+    underspec = _underspecified_steps(plan)
+    total_bare = sum(n for _, n, _ in underspec)
 
-    if shallow:
-        print(colorize(f"  Cannot enrich: {total_bare} step(s) across {len(shallow)} cluster(s) lack detail or issue_refs:", "red"))
-        for name, bare, total in shallow:
+    if underspec:
+        print(colorize(f"  Cannot enrich: {total_bare} step(s) across {len(underspec)} cluster(s) lack detail or issue_refs:", "red"))
+        for name, bare, total in underspec:
             print(colorize(f"    {name}: {bare}/{total} steps need enrichment", "yellow"))
         print()
         print(colorize("  Every step needs --detail (sub-points) or --issue-refs (for auto-completion).", "dim"))
@@ -548,7 +548,7 @@ def _cmd_stage_sense_check(
     # Re-run enrich-level validations on the (possibly mutated) plan
     from desloppify.base.discovery.paths import get_project_root
     from ._stage_validation import (
-        _shallow_steps,
+        _underspecified_steps,
         _steps_missing_issue_refs,
         _steps_with_bad_paths,
         _steps_with_vague_detail,
@@ -558,9 +558,9 @@ def _cmd_stage_sense_check(
     repo_root = get_project_root()
     problems: list[str] = []
 
-    shallow = _shallow_steps(plan)
-    if shallow:
-        total_bare = sum(n for _, n, _ in shallow)
+    underspec = _underspecified_steps(plan)
+    if underspec:
+        total_bare = sum(n for _, n, _ in underspec)
         problems.append(f"{total_bare} step(s) lack detail or issue_refs")
 
     bad_paths = _steps_with_bad_paths(plan, repo_root)

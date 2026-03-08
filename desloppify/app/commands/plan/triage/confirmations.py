@@ -112,8 +112,8 @@ def _confirm_observe(
     if cited:
         print(f"  You cited {len(cited)} issue IDs in your report.")
 
-    # Gate: must cite a meaningful fraction of issues
-    min_citations = min(5, max(1, issue_count // 10))  # at least 10% or 5, whichever is smaller
+    # Gate: must cite a meaningful fraction of issues (skip if no review issues exist)
+    min_citations = min(5, max(1, issue_count // 10)) if issue_count > 0 else 0
     if len(cited) < min_citations:
         print(colorize(
             f"\n  Cannot confirm: only {len(cited)} issue ID(s) cited in report (need {min_citations}+).",
@@ -459,7 +459,7 @@ def _confirm_enrich(
         return
 
     from ._stage_validation import (
-        _shallow_steps,
+        _underspecified_steps,
         _steps_missing_issue_refs,
         _steps_referencing_skipped_issues,
         _steps_with_bad_paths,
@@ -470,11 +470,11 @@ def _confirm_enrich(
     print(colorize("  Stage: ENRICH — Make steps executor-ready (detail, refs)", "bold"))
     print(colorize("  " + "─" * 54, "dim"))
 
-    shallow = _shallow_steps(plan)
-    if shallow:
-        total_bare = sum(n for _, n, _ in shallow)
+    underspec = _underspecified_steps(plan)
+    if underspec:
+        total_bare = sum(n for _, n, _ in underspec)
         print(colorize(f"  Cannot confirm: {total_bare} step(s) still lack detail or issue_refs.", "red"))
-        for name, bare, total in shallow[:5]:
+        for name, bare, total in underspec[:5]:
             print(colorize(f"    {name}: {bare}/{total} steps", "yellow"))
         print()
         print(colorize("  Every step needs --detail (sub-points) or --issue-refs (for auto-completion).", "dim"))
@@ -595,7 +595,7 @@ def _confirm_sense_check(
 
     # Re-run all enrich-level validations
     from ._stage_validation import (
-        _shallow_steps,
+        _underspecified_steps,
         _steps_missing_issue_refs,
         _steps_with_bad_paths,
         _steps_with_vague_detail,
@@ -608,11 +608,11 @@ def _confirm_sense_check(
 
     repo_root = get_project_root()
 
-    shallow = _shallow_steps(plan)
-    if shallow:
-        total_bare = sum(n for _, n, _ in shallow)
+    underspec = _underspecified_steps(plan)
+    if underspec:
+        total_bare = sum(n for _, n, _ in underspec)
         print(colorize(f"  Cannot confirm: {total_bare} step(s) still lack detail or issue_refs.", "red"))
-        for name, bare, total in shallow[:5]:
+        for name, bare, total in underspec[:5]:
             print(colorize(f"    {name}: {bare}/{total} steps", "yellow"))
         return
 

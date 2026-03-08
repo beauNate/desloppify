@@ -442,6 +442,121 @@ class TestWorkflowRunScanItem:
 
 
 # ---------------------------------------------------------------------------
+# Cluster focus must not trigger false-empty queue (workflow::run-scan bug)
+# ---------------------------------------------------------------------------
+
+class TestClusterFocusDoesNotTriggerRunScan:
+    """Regression tests: active_cluster must not affect lifecycle decisions.
+
+    The root cause was that cluster focus (a view-layer concern) was applied
+    inside build_work_queue, making the queue look empty when items existed
+    outside the focused cluster.  Now build_work_queue always returns the
+    canonical global queue; cluster focus is applied by callers.
+    """
+
+    def _make_state_and_plan(self):
+        """Two open issues, one in cluster 'auth', one outside."""
+        state: dict = {
+            "issues": {
+                "f1": {
+                    "id": "f1", "detector": "unused", "status": "open",
+                    "file": "src/auth.ts", "tier": 1, "confidence": "high",
+                    "summary": "in cluster", "detail": {},
+                },
+                "f2": {
+                    "id": "f2", "detector": "unused", "status": "open",
+                    "file": "src/utils.ts", "tier": 1, "confidence": "high",
+                    "summary": "outside cluster", "detail": {},
+                },
+            },
+            "scan_count": 5,
+        }
+        plan = {
+            "plan_start_scores": {"strict": 75.0},
+            "queue_order": ["f1", "f2"],
+            "skipped": {},
+            "clusters": {
+                "auth": {"issue_ids": ["f1"]},
+            },
+            "active_cluster": "auth",
+        }
+        return state, plan
+
+    def test_canonical_queue_includes_all_items_despite_active_cluster(self):
+        """build_work_queue returns all items regardless of active_cluster."""
+        from desloppify.engine._work_queue.core import (
+            QueueBuildOptions,
+            build_work_queue,
+        )
+
+        state, plan = self._make_state_and_plan()
+        result = build_work_queue(
+            state,
+            options=QueueBuildOptions(status="open", count=None, plan=plan),
+        )
+        ids = {i["id"] for i in result["items"]}
+        assert "f1" in ids and "f2" in ids, (
+            "build_work_queue must return all items — cluster focus is a caller concern"
+        )
+
+    def test_no_run_scan_when_items_exist_outside_cluster(self):
+        """Resolving focused-cluster items doesn't trigger run-scan fallback."""
+        from desloppify.engine._work_queue.core import (
+            QueueBuildOptions,
+            build_work_queue,
+        )
+
+        state, plan = self._make_state_and_plan()
+        state["issues"]["f1"]["status"] = "resolved"
+        result = build_work_queue(
+            state,
+            options=QueueBuildOptions(status="open", count=None, plan=plan),
+        )
+        run_scan = [i for i in result["items"] if i["id"] == "workflow::run-scan"]
+        assert len(run_scan) == 0, (
+            "workflow::run-scan must not appear when items exist outside the focused cluster"
+        )
+
+    def test_breakdown_not_affected_by_active_cluster(self):
+        """plan_aware_queue_breakdown sees the global queue — not the cluster view."""
+        from desloppify.app.commands.helpers.queue_progress import (
+            ScoreDisplayMode,
+            plan_aware_queue_breakdown,
+            score_display_mode,
+        )
+
+        state, plan = self._make_state_and_plan()
+        state["issues"]["f1"]["status"] = "resolved"
+        breakdown = plan_aware_queue_breakdown(state, plan=plan)
+        assert breakdown.objective_actionable >= 1, (
+            "active_cluster must not hide items from lifecycle breakdown"
+        )
+        mode = score_display_mode(breakdown, plan["plan_start_scores"]["strict"])
+        assert mode is ScoreDisplayMode.FROZEN, (
+            "Score should stay FROZEN when objective items exist outside focused cluster"
+        )
+
+    def test_run_scan_injected_when_globally_empty(self):
+        """When ALL issues are resolved, run-scan appears normally."""
+        from desloppify.engine._work_queue.core import (
+            QueueBuildOptions,
+            build_work_queue,
+        )
+
+        state, plan = self._make_state_and_plan()
+        state["issues"]["f1"]["status"] = "resolved"
+        state["issues"]["f2"]["status"] = "resolved"
+        result = build_work_queue(
+            state,
+            options=QueueBuildOptions(status="open", count=None, plan=plan),
+        )
+        run_scan = [i for i in result["items"] if i["id"] == "workflow::run-scan"]
+        assert len(run_scan) == 1, (
+            "workflow::run-scan should appear when the queue is globally empty"
+        )
+
+
+# ---------------------------------------------------------------------------
 # Fix 4a: render_queue_header for workflow-only items
 # ---------------------------------------------------------------------------
 

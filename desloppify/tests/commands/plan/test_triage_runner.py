@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from desloppify.app.commands.plan.triage.runner import codex_runner
 from desloppify.app.commands.plan.triage.runner.stage_prompts import build_stage_prompt
 from desloppify.app.commands.plan.triage.runner.stage_validation import (
     build_auto_attestation,
@@ -197,6 +198,111 @@ def test_validate_enrich_vague_detail(tmp_path: Path) -> None:
     ok, msg = validate_stage("enrich", plan, {}, tmp_path)
     assert not ok
     assert "vague" in msg
+
+
+# ---------- Underspecified steps (AND→OR fix) ----------
+
+
+def test_underspecified_catches_refs_but_no_detail(tmp_path: Path) -> None:
+    """A step with issue_refs but no detail should be caught."""
+    from desloppify.app.commands.plan.triage._stage_validation import _underspecified_steps
+
+    plan = {
+        "clusters": {
+            "c1": {
+                "issue_ids": ["review::a::b"],
+                "action_steps": [
+                    {"title": "shell step", "issue_refs": ["review::a::b"], "effort": "small"}
+                ],
+            }
+        }
+    }
+    results = _underspecified_steps(plan)
+    assert len(results) == 1
+    assert results[0][0] == "c1"
+    assert results[0][1] == 1  # 1 bare step
+
+
+def test_underspecified_catches_detail_but_no_refs(tmp_path: Path) -> None:
+    """A step with detail but no issue_refs should be caught."""
+    from desloppify.app.commands.plan.triage._stage_validation import _underspecified_steps
+
+    plan = {
+        "clusters": {
+            "c1": {
+                "issue_ids": ["review::a::b"],
+                "action_steps": [
+                    {"title": "orphan step", "detail": "Update src/foo.ts lines 10-20", "effort": "small"}
+                ],
+            }
+        }
+    }
+    results = _underspecified_steps(plan)
+    assert len(results) == 1
+
+
+def test_underspecified_passes_complete_step() -> None:
+    """A step with both detail and issue_refs should pass."""
+    from desloppify.app.commands.plan.triage._stage_validation import _underspecified_steps
+
+    plan = {
+        "clusters": {
+            "c1": {
+                "issue_ids": ["review::a::b"],
+                "action_steps": [
+                    {
+                        "title": "good step",
+                        "detail": "Update src/foo.ts to fix the issue",
+                        "issue_refs": ["review::a::b"],
+                        "effort": "small",
+                    }
+                ],
+            }
+        }
+    }
+    results = _underspecified_steps(plan)
+    assert results == []
+
+
+# ---------- Vague detail flags missing detail ----------
+
+
+def test_vague_detail_flags_missing_detail(tmp_path: Path) -> None:
+    """A step with no detail at all should be flagged as vague."""
+    from desloppify.app.commands.plan.triage._stage_validation import _steps_with_vague_detail
+
+    plan = {
+        "clusters": {
+            "c1": {
+                "issue_ids": ["review::a::b"],
+                "action_steps": [
+                    {"title": "empty step", "issue_refs": ["review::a::b"], "effort": "small"}
+                ],
+            }
+        }
+    }
+    results = _steps_with_vague_detail(plan, tmp_path)
+    assert len(results) == 1
+    assert results[0][0] == "c1"
+    assert results[0][2] == "empty step"
+
+
+def test_vague_detail_flags_empty_string_detail(tmp_path: Path) -> None:
+    """A step with empty string detail should be flagged as vague."""
+    from desloppify.app.commands.plan.triage._stage_validation import _steps_with_vague_detail
+
+    plan = {
+        "clusters": {
+            "c1": {
+                "issue_ids": ["review::a::b"],
+                "action_steps": [
+                    {"title": "blank step", "detail": "", "issue_refs": ["review::a::b"], "effort": "small"}
+                ],
+            }
+        }
+    }
+    results = _steps_with_vague_detail(plan, tmp_path)
+    assert len(results) == 1
 
 
 # ---------- Auto attestation ----------
@@ -411,3 +517,56 @@ def test_plan_lock_prevents_concurrent_writes(tmp_path: Path) -> None:
     t2.join(timeout=5)
 
     assert sorted(results) == [1, 2]
+
+
+# ---------- Triage codex runner ----------
+
+
+def test_run_triage_stage_defaults_to_text_validation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Triage runner should validate plain text output by default (not JSON-only)."""
+    captured: dict[str, object] = {}
+
+    def _fake_run_codex_batch(*, prompt, repo_root, output_file, log_file, deps, codex_batch_command_fn=None):
+        captured["prompt"] = prompt
+        captured["repo_root"] = repo_root
+        captured["output_file"] = output_file
+        captured["log_file"] = log_file
+        captured["validator"] = deps.validate_output_fn
+        return 0
+
+    monkeypatch.setattr(codex_runner, "run_codex_batch", _fake_run_codex_batch)
+
+    output_file = tmp_path / "triage.raw.txt"
+    log_file = tmp_path / "triage.log"
+    ret = codex_runner.run_triage_stage(
+        prompt="triage prompt",
+        repo_root=tmp_path,
+        output_file=output_file,
+        log_file=log_file,
+    )
+    assert ret == 0
+    assert captured["validator"] is codex_runner._output_file_has_text
+
+
+def test_run_triage_stage_allows_validator_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Explicit validate_output_fn should override default text validator."""
+    captured: dict[str, object] = {}
+
+    def _fake_run_codex_batch(*, prompt, repo_root, output_file, log_file, deps, codex_batch_command_fn=None):
+        captured["validator"] = deps.validate_output_fn
+        return 0
+
+    monkeypatch.setattr(codex_runner, "run_codex_batch", _fake_run_codex_batch)
+
+    def _custom_validator(_path: Path) -> bool:
+        return True
+
+    ret = codex_runner.run_triage_stage(
+        prompt="triage prompt",
+        repo_root=tmp_path,
+        output_file=tmp_path / "triage.raw.txt",
+        log_file=tmp_path / "triage.log",
+        validate_output_fn=_custom_validator,
+    )
+    assert ret == 0
+    assert captured["validator"] is _custom_validator

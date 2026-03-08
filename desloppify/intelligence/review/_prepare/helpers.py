@@ -8,7 +8,7 @@ from desloppify.base.discovery.file_paths import rel
 
 HOLISTIC_WORKFLOW = [
     "Read .desloppify/query.json for context, excerpts, and investigation batches",
-    "For each batch: start from listed seed files, then explore likely hotspots/unreviewed neighbors; evaluate the batch's dimensions (batches are independent — parallelize)",
+    "For each batch: start from listed seed files, then explore likely hotspots/unreviewed neighbors; evaluate the batch's dimension (each batch covers exactly one dimension; batches are independent — parallelize)",
     "Cross-reference issues with the sibling_behavior and convention data",
     "IMPORTANT: issues must be defects only — never positive observations. High scores capture quality; issues capture problems.",
     "Write ALL issues to issues.json — do NOT fix code before importing. Import creates tracked state entries that let desloppify correlate fixes to issues.",

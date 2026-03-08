@@ -332,6 +332,13 @@ For EVERY step in every cluster, read the actual source file and verify:
 5. VAGUENESS: Could a developer with zero context execute this step?
 6. EFFORT TAGS: Does the tag match actual scope?
 7. DUPLICATES: Flag steps that duplicate work in another cluster.
+8. OVER-ENGINEERING: Would this change make the codebase *worse*? Flag steps that:
+   - Add abstractions, wrappers, or indirection for a one-time operation
+   - Introduce unnecessary config/feature-flags/generalization
+   - Make simple code harder to read for marginal benefit
+   - Gold-plate beyond what the issue actually requires
+   - Trade one smell for a worse one (e.g. fix duplication by adding a fragile base class)
+   Remove or simplify over-engineered steps. If the whole cluster is net-negative, say so.
 
 Fix with: `desloppify plan cluster update <name> --update-step N --detail "..." --effort <tag>`
 
@@ -616,6 +623,14 @@ def build_sense_check_content_prompt(
         "   not \"small\". Decomposing a 400-line file is \"large\", not \"medium\".\n"
         "7. DUPLICATES: If you notice this step does the same thing as a step in another\n"
         "   cluster, note it in your report.\n"
+        "8. OVER-ENGINEERING: Would this change make the codebase *worse*? Flag steps that:\n"
+        "   - Add abstractions, wrappers, or indirection for a one-time operation\n"
+        "   - Introduce unnecessary config, feature flags, or generalization\n"
+        "   - Make simple code harder to read for marginal benefit\n"
+        "   - Gold-plate beyond what the issue actually requires\n"
+        "   - Trade one smell for a worse one (e.g. fix duplication by adding a fragile base class)\n"
+        "   If a step is net-negative, recommend removing it or simplifying the approach.\n"
+        "   If the entire cluster is net-negative, say so clearly in your report.\n"
     )
 
     parts.append(

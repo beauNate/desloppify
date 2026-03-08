@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from desloppify.base.output.terminal import colorize
-from desloppify.engine._plan.stale_policy import _REVIEW_DETECTORS
 from desloppify.engine.plan import TRIAGE_IDS
 
 
@@ -100,9 +99,12 @@ def _unclustered_review_issues(plan: dict, state: dict | None = None) -> list[st
             clustered_ids.update(cluster.get("issue_ids", []))
 
     if state is not None:
+        # Only count actual review/concerns issues — not subjective_review
+        # placeholders (unreviewed files). Matches collect_triage_input filter.
+        _TRIAGE_DETECTORS = ("review", "concerns")
         review_ids = [
             fid for fid, f in state.get("issues", {}).items()
-            if f.get("status") == "open" and f.get("detector") in _REVIEW_DETECTORS
+            if f.get("status") == "open" and f.get("detector") in _TRIAGE_DETECTORS
         ]
     else:
         review_ids = [

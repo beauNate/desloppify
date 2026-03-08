@@ -147,6 +147,7 @@ def _run_review_mode(
             allow_partial=opts.allow_partial,
             scan_after_import=opts.scan_after_import,
             scan_path=opts.path,
+            dry_run=opts.dry_run,
         )
         return
     if opts.external_start:
@@ -194,6 +195,7 @@ def _run_review_mode(
             manual_override=opts.manual_override,
             attested_external=opts.attested_external,
             manual_attest=opts.attest,
+            dry_run=opts.dry_run,
         )
         return
     review_rerun_preflight(state, args, state_file=state_file)

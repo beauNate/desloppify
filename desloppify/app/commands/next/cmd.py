@@ -18,13 +18,16 @@ from desloppify.app.commands.helpers.queue_progress import (
     plan_aware_queue_breakdown,
 )
 from desloppify.app.commands.helpers.runtime import command_runtime
-from desloppify.base.config import DEFAULT_TARGET_STRICT_SCORE, target_strict_score_from_config
 from desloppify.app.commands.helpers.state import require_completed_scan
+from desloppify.app.skill_docs import check_skill_version
+from desloppify.base.config import (
+    DEFAULT_TARGET_STRICT_SCORE,
+    target_strict_score_from_config,
+)
 from desloppify.base.discovery.file_paths import safe_write_text
 from desloppify.base.exception_sets import PLAN_LOAD_EXCEPTIONS, CommandError
 from desloppify.base.output.terminal import colorize
 from desloppify.base.output.user_message import print_user_message
-from desloppify.app.skill_docs import check_skill_version
 from desloppify.base.tooling import check_config_staleness
 from desloppify.engine._scoring.detection import merge_potentials
 from desloppify.engine._work_queue.context import queue_context
@@ -32,7 +35,10 @@ from desloppify.engine._work_queue.core import (
     QueueBuildOptions,
     build_work_queue,
 )
-from desloppify.engine._work_queue.plan_order import collapse_clusters
+from desloppify.engine._work_queue.plan_order import (
+    collapse_clusters,
+    filter_cluster_focus,
+)
 from desloppify.engine.plan import load_plan
 from desloppify.engine.planning.scorecard_projection import (
     scorecard_dimensions_payload,
@@ -252,11 +258,14 @@ def _build_and_render_queue(args: argparse.Namespace, state: dict, config: dict)
             subjective_threshold=target_strict,
             explain=opts.explain,
             include_skipped=opts.include_skipped,
-            cluster=effective_cluster,
             context=ctx,
         ),
     )
     items = queue.get("items", [])
+
+    # View-layer: apply cluster focus after canonical queue is built
+    if effective_cluster and plan_data:
+        items = filter_cluster_focus(items, plan_data, effective_cluster)
 
     # Collapse auto-clusters into display meta-items
     if plan_data and not effective_cluster and not plan_data.get("active_cluster"):

@@ -15,7 +15,6 @@ from desloppify.engine._work_queue.helpers import (
 from desloppify.engine._work_queue.plan_order import (
     collapse_clusters,
     enrich_plan_metadata,
-    filter_cluster_focus,
     separate_skipped,
     stamp_plan_sort_keys,
     stamp_positions,
@@ -72,7 +71,6 @@ class QueueBuildOptions:
     # Plan integration
     plan: dict | None = None
     include_skipped: bool = False
-    cluster: str | None = None
 
     # Pre-computed context (overrides plan)
     context: QueueContext | None = None
@@ -246,15 +244,19 @@ def _plan_postsort(
     plan: dict | None,
     opts: QueueBuildOptions,
 ) -> None:
-    """Re-append skipped items, stamp positions, filter to cluster focus."""
+    """Re-append skipped items and stamp positions.
+
+    Cluster focus filtering is intentionally NOT applied here — it is a
+    view-layer concern that callers apply after building the canonical queue.
+    This prevents UI focus state from affecting lifecycle decisions (scan
+    gating, score display mode, empty-queue fallback).
+    """
     if not plan:
         return
 
     if opts.include_skipped:
         items.extend(skipped)
     stamp_positions(items, plan)
-    focused = filter_cluster_focus(items, plan, opts.cluster)
-    items[:] = focused
 
 
 def _has_objective_items(items: list[WorkQueueItem]) -> bool:

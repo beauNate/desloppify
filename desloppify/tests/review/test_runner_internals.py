@@ -56,6 +56,8 @@ def _make_deps(**overrides) -> CodexBatchRunnerDeps:
         sleep_fn=MagicMock(),
         live_log_interval_seconds=5.0,
         stall_after_output_seconds=90,
+        output_validation_grace_seconds=0.0,
+        output_validation_poll_seconds=0.01,
     )
     defaults.update(overrides)
     return CodexBatchRunnerDeps(**defaults)
@@ -551,6 +553,64 @@ class TestHandleSuccessfulAttempt:
         )
         assert ret == 1
         assert any("missing or invalid" in s for s in log_sections)
+
+    def test_success_with_delayed_output_passes_with_grace(self, tmp_path):
+        """Exit 0 with late output write should pass after grace polling."""
+        output_file = tmp_path / "out.txt"
+        calls = {"n": 0}
+
+        def _validate(path: Path) -> bool:
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return False
+            path.write_text("late but valid")
+            return True
+
+        result = _ExecutionResult(code=0, stdout_text="done", stderr_text="")
+        deps = _make_deps(
+            validate_output_fn=_validate,
+            output_validation_grace_seconds=0.5,
+            output_validation_poll_seconds=0.01,
+            sleep_fn=MagicMock(),
+        )
+        log_sections: list[str] = []
+        ret = _handle_successful_attempt(
+            result=result,
+            output_file=output_file,
+            log_file=tmp_path / "log.txt",
+            deps=deps,
+            log_sections=log_sections,
+        )
+        assert ret == 0
+        assert any("grace wait" in s for s in log_sections)
+        deps.sleep_fn.assert_called()
+
+    def test_success_recovers_from_stdout_fallback_for_custom_validator(self, tmp_path):
+        """Custom validator mode can recover by writing stdout fallback text."""
+        output_file = tmp_path / "out.txt"
+
+        def _text_validate(path: Path) -> bool:
+            return path.exists() and bool(path.read_text().strip())
+
+        def _safe_write(path: Path, text: str) -> None:
+            path.write_text(text)
+
+        result = _ExecutionResult(code=0, stdout_text="fallback output", stderr_text="")
+        log_sections: list[str] = []
+        ret = _handle_successful_attempt(
+            result=result,
+            output_file=output_file,
+            log_file=tmp_path / "log.txt",
+            deps=_make_deps(
+                validate_output_fn=_text_validate,
+                safe_write_text_fn=_safe_write,
+                output_validation_grace_seconds=0.0,
+            ),
+            log_sections=log_sections,
+        )
+        assert ret == 0
+        assert output_file.read_text() == "fallback output"
+        assert any("stdout/stderr fallback" in s for s in log_sections)
 
 
 class TestHandleFailedAttempt:

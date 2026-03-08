@@ -327,6 +327,7 @@ def do_import_run(
     allow_partial: bool = False,
     scan_after_import: bool = False,
     scan_path: str = ".",
+    dry_run: bool = False,
 ) -> None:
     """Re-import results from a completed run directory.
 
@@ -388,7 +389,7 @@ def do_import_run(
         batch_indexes=successful_indexes,
     )
 
-    # -- write merged output --
+    # -- write merged output (always — this is inside the run dir, not state) --
     merged_path = run_dir / "holistic_issues_merged.json"
     safe_write_text(merged_path, json.dumps(merged, indent=2) + "\n")
     print(colorize(f"  Merged output: {merged_path}", "bold"))
@@ -403,10 +404,11 @@ def do_import_run(
         allow_partial=allow_partial,
         trusted_assessment_source=True,
         trusted_assessment_label=f"trusted import-run replay from {run_dir.name}",
+        dry_run=dry_run,
     )
 
     # -- optional follow-up scan --
-    if scan_after_import:
+    if scan_after_import and not dry_run:
         lang_name = getattr(lang, "name", None) or str(getattr(lang, "lang", ""))
         if lang_name:
             run_followup_scan(

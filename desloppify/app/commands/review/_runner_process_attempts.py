@@ -303,13 +303,61 @@ def _handle_successful_attempt(
     if result.code != 0:
         return None
     validate = deps.validate_output_fn or _output_file_has_json_payload
-    if not validate(output_file):
+    valid = validate(output_file)
+    grace_wait_used = False
+    if not valid:
+        grace_raw = getattr(deps, "output_validation_grace_seconds", 0.0)
+        poll_raw = getattr(deps, "output_validation_poll_seconds", 0.1)
+        try:
+            grace_seconds = max(0.0, float(grace_raw))
+        except (TypeError, ValueError):
+            grace_seconds = 0.0
+        try:
+            poll_seconds = max(0.01, float(poll_raw))
+        except (TypeError, ValueError):
+            poll_seconds = 0.1
+        if grace_seconds > 0:
+            grace_wait_used = True
+            deadline = time.monotonic() + grace_seconds
+            while time.monotonic() < deadline:
+                remaining = deadline - time.monotonic()
+                sleep_for = min(poll_seconds, max(0.0, remaining))
+                if sleep_for <= 0:
+                    break
+                try:
+                    deps.sleep_fn(sleep_for)
+                except (OSError, RuntimeError, ValueError, TypeError):
+                    break
+                if validate(output_file):
+                    valid = True
+                    break
+    if not valid:
+        # For custom validators (triage/text modes), recover from stdout/stderr
+        # when the runner exited successfully but the output file write lagged.
+        if deps.validate_output_fn is not None:
+            fallback_text = (result.stdout_text or "").strip() or (result.stderr_text or "").strip()
+            if fallback_text:
+                try:
+                    deps.safe_write_text_fn(output_file, fallback_text)
+                except (OSError, RuntimeError, ValueError, TypeError):
+                    pass
+                else:
+                    if validate(output_file):
+                        valid = True
+                        log_sections.append(
+                            "Runner output recovered from stdout/stderr fallback text."
+                        )
+    if not valid:
         log_sections.append(
             "Runner exited 0 but output file is missing or invalid; "
             "treating as execution failure."
         )
         deps.safe_write_text_fn(log_file, "\n\n".join(log_sections))
         return 1
+    if grace_wait_used:
+        log_sections.append(
+            "Runner output validation passed after grace wait for delayed file write."
+        )
     deps.safe_write_text_fn(log_file, "\n\n".join(log_sections))
     return 0
 

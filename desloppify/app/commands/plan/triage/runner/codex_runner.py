@@ -35,6 +35,8 @@ def run_triage_stage(
     validate_output_fn: Callable[[Path], bool] | None = None,
 ) -> int:
     """Execute a triage stage via codex subprocess. Returns exit code."""
+    if validate_output_fn is None:
+        validate_output_fn = _output_file_has_text
     deps = CodexBatchRunnerDeps(
         timeout_seconds=timeout_seconds,
         subprocess_run=subprocess.run,

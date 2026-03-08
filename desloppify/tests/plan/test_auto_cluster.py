@@ -23,6 +23,9 @@ from desloppify.engine._work_queue.core import (
 from desloppify.engine._work_queue.plan_order import (
     collapse_clusters as _collapse_clusters,
 )
+from desloppify.engine._work_queue.plan_order import (
+    filter_cluster_focus,
+)
 from desloppify.engine._work_queue.ranking import item_sort_key
 
 # ---------------------------------------------------------------------------
@@ -409,11 +412,12 @@ def test_build_work_queue_no_collapse_when_drilling():
         options=QueueBuildOptions(
             plan=plan,
             count=10,
-            cluster="auto/unused",  # drilling into cluster
         ),
     )
+    # Apply cluster focus at the call site (as production code now does)
+    items = filter_cluster_focus(result["items"], plan, "auto/unused")
     # When drilling, items should be individual issues, not collapsed
-    for item in result["items"]:
+    for item in items:
         assert item.get("kind") != "cluster"
 
 
@@ -424,7 +428,9 @@ def test_build_work_queue_no_collapse_when_drilling():
 def test_generate_action_always_returns_something():
     """Every detector/subtype combination must produce a non-None action."""
     from desloppify.base.registry import DETECTORS
-    from desloppify.engine._plan.cluster_strategy import generate_action as _generate_action
+    from desloppify.engine._plan.cluster_strategy import (
+        generate_action as _generate_action,
+    )
 
     # No metadata → fallback
     assert _generate_action(None, None) == "review and fix each issue"
@@ -440,7 +446,9 @@ def test_generate_action_always_returns_something():
 
 def test_generate_action_strips_subtype_examples():
     """Guidance with ' — ' should be stripped to the core verb for subtypes."""
-    from desloppify.engine._plan.cluster_strategy import strip_guidance_examples as _strip_guidance_examples
+    from desloppify.engine._plan.cluster_strategy import (
+        strip_guidance_examples as _strip_guidance_examples,
+    )
 
     assert _strip_guidance_examples("fix code smells — dead useEffect, empty if chains") == "fix code smells"
     assert _strip_guidance_examples("fix dict key mismatches — dead writes are likely dead code") == "fix dict key mismatches"
