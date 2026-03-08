@@ -20,6 +20,7 @@ from ._runner_process_io import (
     _terminate_process,
     _write_live_snapshot,
 )
+from ._runner_process_attempt_success import handle_successful_attempt_core
 from ._runner_process_types import (
     CodexBatchRunnerDeps,
     _AttemptContext,
@@ -37,7 +38,6 @@ def _run_via_popen(
     interval: float,
     stall_seconds: int,
 ) -> _ExecutionResult:
-    """Execute batch via Popen with live streaming and stall recovery."""
     writer_thread = _start_live_writer(state, ctx, interval)
     try:
         process = deps.subprocess_popen(
@@ -140,7 +140,6 @@ def _run_via_subprocess(
     ctx: _AttemptContext,
     interval: float,
 ) -> _ExecutionResult:
-    """Execute batch via subprocess.run."""
     writer_thread = _start_live_writer(state, ctx, interval)
     try:
         result = deps.subprocess_run(
@@ -174,8 +173,6 @@ def _run_via_subprocess(
         stdout_text=result.stdout or "",
         stderr_text=result.stderr or "",
     )
-
-
 def _resolve_retry_config(deps: CodexBatchRunnerDeps) -> _RetryConfig:
     retries_raw = deps.max_retries if isinstance(deps.max_retries, int) else 0
     max_retries = max(0, retries_raw)
@@ -208,8 +205,6 @@ def _resolve_retry_config(deps: CodexBatchRunnerDeps) -> _RetryConfig:
         stall_seconds=stall_seconds,
         use_popen=use_popen,
     )
-
-
 def _run_batch_attempt(
     *,
     cmd: list[str],
@@ -248,12 +243,8 @@ def _run_batch_attempt(
     else:
         result = _run_via_subprocess(cmd, deps, state, ctx, live_log_interval)
     return header, result
-
-
 def _handle_early_attempt_return(result: _ExecutionResult) -> int | None:
     return result.early_return
-
-
 def _handle_timeout_or_stall(
     *,
     header: str,
@@ -290,8 +281,6 @@ def _handle_timeout_or_stall(
         return 0
     deps.safe_write_text_fn(log_file, "\n\n".join(log_sections))
     return 124
-
-
 def _handle_successful_attempt(
     *,
     result: _ExecutionResult,
@@ -300,68 +289,15 @@ def _handle_successful_attempt(
     deps: CodexBatchRunnerDeps,
     log_sections: list[str],
 ) -> int | None:
-    if result.code != 0:
-        return None
-    validate = deps.validate_output_fn or _output_file_has_json_payload
-    valid = validate(output_file)
-    grace_wait_used = False
-    if not valid:
-        grace_raw = getattr(deps, "output_validation_grace_seconds", 0.0)
-        poll_raw = getattr(deps, "output_validation_poll_seconds", 0.1)
-        try:
-            grace_seconds = max(0.0, float(grace_raw))
-        except (TypeError, ValueError):
-            grace_seconds = 0.0
-        try:
-            poll_seconds = max(0.01, float(poll_raw))
-        except (TypeError, ValueError):
-            poll_seconds = 0.1
-        if grace_seconds > 0:
-            grace_wait_used = True
-            deadline = time.monotonic() + grace_seconds
-            while time.monotonic() < deadline:
-                remaining = deadline - time.monotonic()
-                sleep_for = min(poll_seconds, max(0.0, remaining))
-                if sleep_for <= 0:
-                    break
-                try:
-                    deps.sleep_fn(sleep_for)
-                except (OSError, RuntimeError, ValueError, TypeError):
-                    break
-                if validate(output_file):
-                    valid = True
-                    break
-    if not valid:
-        # For custom validators (triage/text modes), recover from stdout/stderr
-        # when the runner exited successfully but the output file write lagged.
-        if deps.validate_output_fn is not None:
-            fallback_text = (result.stdout_text or "").strip() or (result.stderr_text or "").strip()
-            if fallback_text:
-                try:
-                    deps.safe_write_text_fn(output_file, fallback_text)
-                except (OSError, RuntimeError, ValueError, TypeError):
-                    pass
-                else:
-                    if validate(output_file):
-                        valid = True
-                        log_sections.append(
-                            "Runner output recovered from stdout/stderr fallback text."
-                        )
-    if not valid:
-        log_sections.append(
-            "Runner exited 0 but output file is missing or invalid; "
-            "treating as execution failure."
-        )
-        deps.safe_write_text_fn(log_file, "\n\n".join(log_sections))
-        return 1
-    if grace_wait_used:
-        log_sections.append(
-            "Runner output validation passed after grace wait for delayed file write."
-        )
-    deps.safe_write_text_fn(log_file, "\n\n".join(log_sections))
-    return 0
-
-
+    return handle_successful_attempt_core(
+        result=result,
+        output_file=output_file,
+        log_file=log_file,
+        deps=deps,
+        log_sections=log_sections,
+        default_validate_fn=_output_file_has_json_payload,
+        monotonic_fn=time.monotonic,
+    )
 def _handle_failed_attempt(
     *,
     result: _ExecutionResult,
