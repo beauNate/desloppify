@@ -5,21 +5,28 @@ from __future__ import annotations
 from collections import defaultdict
 
 from desloppify.base.registry import DETECTORS
+from desloppify.engine._plan import stale_policy as stale_policy_mod
 from desloppify.engine._plan.cluster_strategy import (
     cluster_name_from_key as _cluster_name_from_key,
+)
+from desloppify.engine._plan.cluster_strategy import (
     generate_action as _generate_action,
+)
+from desloppify.engine._plan.cluster_strategy import (
     generate_description as _generate_description,
+)
+from desloppify.engine._plan.cluster_strategy import (
     grouping_key as _grouping_key,
 )
-from desloppify.engine._plan.stale_dimensions import (
-    SUBJECTIVE_PREFIX,
-    _current_stale_ids,
-    current_under_target_ids,
-    current_unscored_ids,
-)
+from desloppify.engine._plan.constants import SUBJECTIVE_PREFIX
 from desloppify.engine._plan.subjective_policy import (
     NON_OBJECTIVE_DETECTORS,
     SubjectiveVisibility,
+)
+from desloppify.engine._plan.sync_auto_prune import prune_stale_clusters
+from desloppify.engine._plan.sync_dimensions import (
+    current_under_target_ids,
+    current_unscored_ids,
 )
 from desloppify.engine._state.schema import StateModel
 
@@ -114,7 +121,7 @@ def _subjective_state_sets(
         under_target_ids = policy.under_target_ids
     else:
         unscored_ids = current_unscored_ids(state)
-        stale_ids = _current_stale_ids(state)
+        stale_ids = stale_policy_mod.current_stale_ids(state, subjective_prefix=SUBJECTIVE_PREFIX)
         under_target_ids = current_under_target_ids(state, target_strict=target_strict)
     return stale_ids, under_target_ids, unscored_ids
 
@@ -376,45 +383,6 @@ def sync_subjective_clusters(
             order.remove(fid)
             changes += 1
 
-    return changes
-
-
-def prune_stale_clusters(
-    plan: dict,
-    issues: dict,
-    clusters: dict,
-    active_auto_keys: set[str],
-    now: str,
-) -> int:
-    """Delete auto-clusters that no longer have matching groups."""
-    changes = 0
-    for name in list(clusters.keys()):
-        cluster = clusters[name]
-        if not cluster.get("auto"):
-            continue
-        ck = cluster.get("cluster_key", "")
-        if ck in active_auto_keys:
-            continue
-        if cluster.get("user_modified"):
-            alive = [
-                fid for fid in cluster.get("issue_ids", [])
-                if fid in issues and issues[fid].get("status") == "open"
-            ]
-            if alive:
-                if len(alive) != len(cluster.get("issue_ids", [])):
-                    cluster["issue_ids"] = alive
-                    cluster["updated_at"] = now
-                    changes += 1
-                continue
-        del clusters[name]
-        for fid in cluster.get("issue_ids", []):
-            override = plan.get("overrides", {}).get(fid)
-            if override and override.get("cluster") == name:
-                override["cluster"] = None
-                override["updated_at"] = now
-        if plan.get("active_cluster") == name:
-            plan["active_cluster"] = None
-        changes += 1
     return changes
 
 
