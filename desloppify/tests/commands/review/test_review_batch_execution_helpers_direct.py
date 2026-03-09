@@ -104,6 +104,42 @@ def test_progress_reporter_tracks_lifecycle_and_stalls(tmp_path: Path) -> None:
     assert any("batch-done batch=1" in line for line in logs)
 
 
+def test_progress_heartbeat_helper_contracts() -> None:
+    active, queued, elapsed = progress_mod._parse_heartbeat_details(
+        {
+            "active_batches": [0, "1", 2],
+            "queued_batches": [3, None, 4],
+            "elapsed_seconds": {0: 4.8, 1: "bad", 2: 9},
+        }
+    )
+    assert active == [0, 2]
+    assert queued == [3, 4]
+    assert elapsed == {0: 4.8, 2: 9.0}
+
+    segments = progress_mod._render_heartbeat_segments(
+        active=[0, 2, 5],
+        elapsed_seconds=elapsed,
+    )
+    assert segments == ["#1:4s", "#3:9s", "#6:0s"]
+
+    newly_warned = progress_mod._find_newly_stalled_batches(
+        active=[0, 1, 2],
+        elapsed_seconds={0: 3.0, 1: 7.0, 2: 8.0},
+        stall_warning_seconds=6.0,
+        stall_warned_batches={1},
+    )
+    assert newly_warned == [2]
+    assert (
+        progress_mod._find_newly_stalled_batches(
+            active=[2],
+            elapsed_seconds={2: 99.0},
+            stall_warning_seconds=0.0,
+            stall_warned_batches=set(),
+        )
+        == []
+    )
+
+
 def test_collect_and_reconcile_results_marks_failure_modes(tmp_path: Path) -> None:
     out0 = tmp_path / "out0.json"
     out0.write_text("{}")
