@@ -9,8 +9,7 @@ from desloppify.base.output.terminal import colorize
 from desloppify.engine.plan import collect_triage_input, detect_recurring_patterns, save_plan
 from desloppify.state import utc_now
 
-from .confirmations_basic import MIN_ATTESTATION_LEN as _MIN_ATTESTATION_LEN
-from .confirmations_basic import validate_attestation as _validate_attestation
+from .confirmations_basic import MIN_ATTESTATION_LEN, validate_attestation
 from .helpers import manual_clusters_with_issues, observe_dimension_breakdown
 from .stage_helpers import unclustered_review_issues, unenriched_clusters
 from ._stage_validation_completion_policy import _completion_clusters_valid
@@ -60,14 +59,14 @@ def _auto_confirm_stage(
         save_plan_fn = save_plan
     if stage_record.get("confirmed_at"):
         return True
-    if not attestation or len(attestation.strip()) < _MIN_ATTESTATION_LEN:
+    if not attestation or len(attestation.strip()) < MIN_ATTESTATION_LEN:
         print(colorize(f"  {blocked_heading}", "red"))
         print(colorize(f"  Run: {confirm_cmd}", "dim"))
         print(colorize(f"  {inline_hint}", "dim"))
         return False
 
     confirmed_text = attestation.strip()
-    validation_err = _validate_attestation(
+    validation_err = validate_attestation(
         confirmed_text,
         stage_name,
         dimensions=dimensions,

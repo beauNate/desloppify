@@ -6,7 +6,6 @@ import argparse
 
 from desloppify.app.commands.helpers.runtime import command_runtime
 from desloppify.app.commands.helpers.state import require_completed_scan
-from desloppify.app.commands.plan.triage import confirmations_basic as _confirmations_basic_mod
 from desloppify.app.commands.plan.triage import confirmations_router as _confirmations_router_mod
 from desloppify.app.commands.plan.triage import display as _display_mod
 from desloppify.app.commands.plan.triage import helpers as _helpers_mod
@@ -25,8 +24,6 @@ from desloppify.engine.plan import (
     save_plan,
 )
 
-_MIN_ATTESTATION_LEN = _confirmations_basic_mod.MIN_ATTESTATION_LEN
-_validate_attestation = _confirmations_basic_mod.validate_attestation
 _triage_coverage = _helpers_mod.triage_coverage
 
 
@@ -181,8 +178,6 @@ def cmd_plan_triage(args: argparse.Namespace) -> None:
     _display_mod.cmd_triage_dashboard(args, services=resolved_services)
 
 __all__ = [
-    "_MIN_ATTESTATION_LEN",
     "_triage_coverage",
-    "_validate_attestation",
     "cmd_plan_triage",
 ]
