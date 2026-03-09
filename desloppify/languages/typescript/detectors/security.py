@@ -50,14 +50,14 @@ def detect_ts_security(
     zone_map: FileZoneMap | None,
 ) -> tuple[list[dict], int]:
     """Detect TypeScript-specific security issues."""
-    return detect_ts_security_result(files, zone_map).as_tuple()
+    return _detect_ts_security_result(files, zone_map).as_tuple()
 
 
-def detect_ts_security_result(
+def _detect_ts_security_result(
     files: list[str],
     zone_map: FileZoneMap | None,
 ) -> DetectorResult[dict]:
-    """Detect TypeScript-specific security issues with explicit result contract."""
+    """Internal structured-result adapter for detailed security callers."""
     entries: list[dict] = []
     scanned = 0
 
@@ -109,5 +109,4 @@ def detect_ts_security_result(
 
 __all__ = [
     "detect_ts_security",
-    "detect_ts_security_result",
 ]

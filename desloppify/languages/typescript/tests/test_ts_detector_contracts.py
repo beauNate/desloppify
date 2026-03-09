@@ -21,10 +21,7 @@ from desloppify.languages.typescript.detectors.patterns_analysis import (
     detect_pattern_anomalies,
     detect_pattern_anomalies_result,
 )
-from desloppify.languages.typescript.detectors.security import (
-    detect_ts_security,
-    detect_ts_security_result,
-)
+from desloppify.languages.typescript.detectors.security import detect_ts_security
 
 
 def _write(tmp_path: Path, rel_path: str, content: str) -> None:
@@ -65,14 +62,12 @@ def test_deprecated_result_contract(tmp_path):
     assert result.population_size == total
 
 
-def test_security_result_contract():
+def test_security_tuple_contract():
     content = "const out = eval(userInput);\n"
     with patch.object(Path, "read_text", return_value=content):
-        result = detect_ts_security_result(["/fake/src/test.ts"], None)
         entries, total = detect_ts_security(["/fake/src/test.ts"], None)
-    assert result.population_kind == "files"
-    assert result.entries == entries
-    assert result.population_size == total
+    assert total == 1
+    assert entries and entries[0]["detail"]["kind"] == "eval_injection"
 
 
 def test_detector_result_tuple_order_and_legacy_adapter():

@@ -37,7 +37,7 @@ from desloppify.languages.typescript.review import (
 )
 from desloppify.languages.typescript._zones import TS_ZONE_RULES
 from desloppify.languages.typescript.detectors import deps as deps_detector_mod
-from desloppify.languages.typescript.detectors.security import detect_ts_security_result
+from desloppify.languages.typescript.detectors.security import _detect_ts_security_result
 from desloppify.languages.typescript.phases import (
     TS_COMPLEXITY_SIGNALS,
     TS_GOD_RULES,
@@ -58,7 +58,7 @@ register_lang_hooks("typescript", test_coverage=ts_test_coverage_hooks)
 @register_lang("typescript")
 class TypeScriptConfig(LangConfig):
     def detect_lang_security_detailed(self, files, zone_map):
-        result = detect_ts_security_result(files, zone_map)
+        result = _detect_ts_security_result(files, zone_map)
         return LangSecurityResult(
             entries=result.entries,
             files_scanned=result.population_size,

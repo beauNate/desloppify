@@ -124,13 +124,13 @@ def test_ts_security_detector_reports_line_and_file_level_issues(tmp_path) -> No
     sql.parent.mkdir(parents=True, exist_ok=True)
     sql.write_text("CREATE VIEW public.foo AS SELECT 1;", encoding="utf-8")
 
-    result = ts_security_mod.detect_ts_security_result(
+    entries, scanned = ts_security_mod.detect_ts_security(
         [str(page), str(edge), str(sql)],
         zone_map=None,
     )
-    kinds = {entry["detail"]["kind"] for entry in result.entries}
+    kinds = {entry["detail"]["kind"] for entry in entries}
 
-    assert result.population_size == 3
+    assert scanned == 3
     assert "eval_injection" in kinds
     assert "innerHTML_assignment" in kinds
     assert "open_redirect" in kinds
