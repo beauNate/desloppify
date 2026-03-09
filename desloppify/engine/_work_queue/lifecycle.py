@@ -7,9 +7,13 @@ from desloppify.engine._work_queue.types import WorkQueueItem
 
 
 def _has_objective_items(items: list[WorkQueueItem]) -> bool:
-    """True if any objective mechanical work items remain in the queue."""
+    """True if any objective mechanical work items remain in the queue.
+
+    Checks both individual issues and collapsed clusters — clusters
+    contain objective issues grouped by the queue builder.
+    """
     return any(
-        item.get("kind") == "issue"
+        item.get("kind") in ("issue", "cluster")
         and item.get("detector", "") not in NON_OBJECTIVE_DETECTORS
         for item in items
     )

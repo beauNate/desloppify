@@ -217,3 +217,26 @@ def test_lifecycle_filter_respects_initial_reviews_triage_and_endgame_rules() ->
     ]
     filtered_endgame = lifecycle_mod.apply_lifecycle_filter(endgame_items)
     assert filtered_endgame == endgame_items
+
+
+def test_lifecycle_filter_treats_clusters_as_objective() -> None:
+    """Clusters containing objective issues should prevent triage from forcing."""
+    items = [
+        {"kind": "workflow_stage", "id": "triage::observe"},
+        {"kind": "cluster", "id": "auto/complexity_reduction", "detector": "complexity"},
+    ]
+    filtered = lifecycle_mod.apply_lifecycle_filter(items)
+    # Cluster is objective work — triage should be hidden, cluster shown
+    assert any(item["kind"] == "cluster" for item in filtered)
+    assert all(not str(item.get("id", "")).startswith("triage::") for item in filtered)
+
+
+def test_lifecycle_filter_forces_triage_when_only_subjective_clusters() -> None:
+    """When only subjective clusters remain, triage should still be forced."""
+    items = [
+        {"kind": "workflow_stage", "id": "triage::observe"},
+        {"kind": "cluster", "id": "auto/subjective_review", "detector": "subjective_assessment"},
+    ]
+    filtered = lifecycle_mod.apply_lifecycle_filter(items)
+    # Subjective cluster is not objective — triage should be forced
+    assert any(str(item.get("id", "")).startswith("triage::") for item in filtered)

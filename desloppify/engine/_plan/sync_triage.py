@@ -138,6 +138,23 @@ def sync_triage_needed(
                 result.pruned = list(TRIAGE_STAGE_IDS)
         return result
 
+    # Backfill: partial triage was done (stages confirmed with
+    # confirmed_at) but triage was never fully completed — remaining
+    # stages were skipped or removed from the queue.  Record current
+    # review IDs as triaged so they don't re-trigger injection on the
+    # next cycle.
+    stages = meta.get("triage_stages", {})
+    has_completed_stage = any(
+        isinstance(v, dict) and v.get("confirmed_at")
+        for v in stages.values()
+    )
+    if has_completed_stage and not meta.get("triaged_ids") and not last_hash:
+        current_review = sorted(stale_policy_mod.open_review_ids(state))
+        if current_review:
+            meta["triaged_ids"] = current_review
+            meta["issue_snapshot_hash"] = current_hash
+            plan["epic_triage_meta"] = meta
+
     if current_hash and current_hash != last_hash:
         # Distinguish "new issues appeared" from "issues were resolved".
         # Only re-triage when genuinely new issues exist.

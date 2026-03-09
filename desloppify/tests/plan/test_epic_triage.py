@@ -278,6 +278,44 @@ class TestSyncTriageNeeded:
         assert not result.pruned
         assert all(sid in plan["queue_order"] for sid in TRIAGE_STAGE_IDS)
 
+    def test_backfill_triaged_ids_after_partial_triage(self):
+        """When triage stages are confirmed but then skipped/removed,
+        triaged_ids should be backfilled so the same issues don't
+        re-trigger triage on the next cycle."""
+        state = _state_with_review_issues("r1", "r2")
+        plan = empty_plan()
+        # Simulate: observe+reflect confirmed, rest skipped, no stages in queue
+        plan["queue_order"] = ["some-objective-item"]
+        plan["epic_triage_meta"] = {
+            "triage_stages": {
+                "observe": {"report": "analysis", "confirmed_at": "2026-01-01T00:00:00Z"},
+                "reflect": {"report": "strategy", "confirmed_at": "2026-01-01T00:01:00Z"},
+            },
+            # triaged_ids and issue_snapshot_hash NOT set (never completed)
+        }
+        result = sync_triage_needed(plan, state)
+        meta = plan["epic_triage_meta"]
+        # triaged_ids should be backfilled with current open review IDs
+        assert sorted(meta["triaged_ids"]) == ["r1", "r2"]
+        assert meta["issue_snapshot_hash"]
+        # Should not inject or defer — backfill handles it
+        assert not result.injected
+        assert not result.deferred
+
+    def test_no_backfill_when_triage_completed(self):
+        """No backfill needed when triaged_ids already populated."""
+        state = _state_with_review_issues("r1")
+        h = review_issue_snapshot_hash(state)
+        plan = empty_plan()
+        plan["epic_triage_meta"] = {
+            "triage_stages": {"observe": {"confirmed_at": "2026-01-01"}},
+            "triaged_ids": ["r1"],
+            "issue_snapshot_hash": h,
+        }
+        result = sync_triage_needed(plan, state)
+        assert not result.injected
+        assert not result.deferred
+
     def test_no_prune_when_triage_in_progress(self):
         """Stages NOT pruned when user has started triage work."""
         state = _state_with_review_issues("r1")
