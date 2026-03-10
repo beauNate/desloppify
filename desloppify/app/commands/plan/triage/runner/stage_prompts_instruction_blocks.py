@@ -115,9 +115,14 @@ Your task: using the verdicts from observe, design the cluster structure.
 **A strategy is NOT a restatement of observe.** Observe says "here's what I found." Reflect
 says "here's what we should DO about it, and here's what we should NOT do, and here's WHY."
 
+**The Structured Observe Assessments table (provided below) is your primary input.** It contains
+a per-issue verdict (genuine/false-positive/exaggerated/over-engineering) with reasoning. Use
+these verdicts as authoritative — do not second-guess observe unless you have specific evidence.
+Issues with verdict `false-positive` or `over-engineering` should go into skip lines, not clusters.
+
 ### What you must do:
 
-1. **Filter:** which issues are genuine (from observe verdicts)?
+1. **Filter:** which issues are genuine (from the observe assessments table)?
 2. **Map:** for each genuine issue, what file/directory does it touch?
 3. **Group:** which issues share files or directories? These become clusters.
 4. **Skip:** which issues should be skipped? (with per-issue justification — "low priority" is
@@ -184,12 +189,14 @@ def _organize_instructions(mode: PromptMode = "self_record") -> str:
         "(issue hash doesn't match, file proximity doesn't hold), adjust and document why."
     )
     process_block = """\
-2. **Skip false positives and over-engineering** identified in observe/reflect. Every skip needs a
-   per-issue justification — not "low priority" but "false positive: the code at line 47
-   already uses named constants, contradicting the issue's claim":
+2. **Skip issues that observe flagged as false-positive or over-engineering.** This is mandatory,
+   not optional. Check the **Structured Observe Assessments** table (provided below) — every
+   issue with verdict `false-positive` or `over-engineering` MUST be skipped. Use the observe
+   `verdict_reasoning` as the basis for your skip note:
    ```
-   desloppify plan skip --permanent <pattern> --note "<specific per-issue reason>" --attest "I have reviewed this triage skip against the code and I am not gaming the score by suppressing a real defect."
+   desloppify plan skip --permanent <pattern> --note "<reason from observe verdict>" --attest "I have reviewed this triage skip against the code and I am not gaming the score by suppressing a real defect."
    ```
+   Do NOT cluster an issue that observe determined is not a real defect.
 3. Create clusters as specified in the blueprint:
    `desloppify plan cluster create <name> --description "..."`
 4. Add issues: `desloppify plan cluster add <name> <patterns...>`
@@ -213,9 +220,11 @@ desloppify plan triage --stage organize --report "<summary of priorities and org
             "and document why."
         )
         process_block = """\
-2. **Decide skips** for false positives and over-engineering identified in observe/reflect.
-   Every skip still needs a per-issue justification — not "low priority" but the specific
-   contradiction or over-engineering reason.
+2. **Skip issues that observe flagged as false-positive or over-engineering.** This is mandatory.
+   Check the **Structured Observe Assessments** table (provided below) — every issue with
+   verdict `false-positive` or `over-engineering` MUST be skipped. Use the observe
+   `verdict_reasoning` as the basis for your skip justification.
+   Do NOT cluster an issue that observe determined is not a real defect.
 3. Define the clusters exactly as they should be created.
 4. Assign every kept issue to a cluster.
 5. Consolidate steps: one step per file or logical change, NOT one step per issue.
@@ -238,12 +247,13 @@ decisions, something went wrong in reflect — the strategy should already be de
 
 ### Process
 
-1. Review the reflect report's cluster blueprint (provided below)
+1. Review the reflect report's cluster blueprint AND the observe assessments table (both provided below)
 {process_block}
 
 ### Quality gates (the confirmation will check these)
 
 Before recording, verify:
+- [ ] Every issue with observe verdict `false-positive` or `over-engineering` has been skipped
 - [ ] Every cluster name describes an area or specific change, not a problem type
 - [ ] No cluster has issues from 5+ unrelated directories (theme-group smell)
 - [ ] Step count < issue count (consolidation happened)

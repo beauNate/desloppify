@@ -504,8 +504,8 @@ def test_execute_stage_uses_self_record_mode_for_organize(monkeypatch, tmp_path:
     for dirname in ("prompts", "output", "logs"):
         (tmp_path / dirname).mkdir()
 
-    def fake_build_stage_prompt(stage, triage_input, prior_reports, *, repo_root, mode, cli_command):
-        del triage_input, prior_reports, repo_root
+    def fake_build_stage_prompt(stage, triage_input, prior_reports, *, repo_root, mode, cli_command, stages_data=None):
+        del triage_input, prior_reports, repo_root, stages_data
         captured["stage"] = stage
         captured["mode"] = mode
         captured["cli_command"] = cli_command

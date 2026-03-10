@@ -111,8 +111,8 @@ def _relevant_prior_reports(
     }.get(stage, tuple(prior_reports))
     result = [(name, prior_reports[name]) for name in wanted if name in prior_reports]
 
-    # For reflect stage, append structured assessments from observe
-    if stage == "reflect" and stages_data:
+    # Append structured observe assessments for stages that need verdict data
+    if stage in {"reflect", "organize"} and stages_data:
         observe_data = stages_data.get("observe", {})
         assessments = observe_data.get("assessments", [])
         if assessments:

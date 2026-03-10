@@ -241,6 +241,7 @@ def _build_reflect_repair_prompt(
     original_report: str,
     missing_ids: list[str],
     duplicate_ids: list[str],
+    stages_data: dict | None = None,
 ) -> str:
     """Build a targeted retry prompt for a reflect report that failed accounting."""
     missing_short = ", ".join(issue_id.rsplit("::", 1)[-1] for issue_id in missing_ids) or "none"
@@ -254,6 +255,7 @@ def _build_reflect_repair_prompt(
         repo_root=repo_root,
         mode="output_only",
         cli_command=cli_command,
+        stages_data=stages_data,
     )
     return "\n\n".join(
         [
@@ -288,6 +290,7 @@ def _repair_reflect_report_if_needed(
     cli_command: str,
     timeout_seconds: int,
     append_run_log,
+    stages_data: dict | None = None,
 ) -> tuple[str | None, str | None]:
     """Retry reflect once with a targeted repair prompt when accounting is invalid."""
     _cited, missing_ids, duplicate_ids = _analyze_reflect_issue_accounting(
@@ -311,6 +314,7 @@ def _repair_reflect_report_if_needed(
         original_report=report,
         missing_ids=missing_ids,
         duplicate_ids=duplicate_ids,
+        stages_data=stages_data,
     )
     repair_prompt_file = prompts_dir / "reflect.repair.md"
     repair_output_file = output_dir / "reflect.repair.raw.txt"
@@ -415,6 +419,7 @@ def _execute_stage(
             return "failed", {"status": "failed", "elapsed_seconds": elapsed}
 
     if not used_parallel:
+        stages_data = plan.get("epic_triage_meta", {}).get("triage_stages", {})
         prompt = build_stage_prompt(
             stage,
             si,
@@ -422,6 +427,7 @@ def _execute_stage(
             repo_root=repo_root,
             mode=prompt_mode,
             cli_command=cli_command,
+            stages_data=stages_data,
         )
 
         prompt_file = prompts_dir / f"{stage}.md"
@@ -483,6 +489,7 @@ def _execute_stage(
                         cli_command=cli_command,
                         timeout_seconds=timeout_seconds,
                         append_run_log=append_run_log,
+                        stages_data=stages_data,
                     )
                     if repair_error:
                         print(
