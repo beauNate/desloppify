@@ -32,6 +32,63 @@ def _load_issues_best_effort(args: argparse.Namespace) -> dict:
     return rt.state.get("issues", {})
 
 
+def _print_cluster_header(cluster_name: str, cluster: dict) -> None:
+    """Render the high-level cluster metadata block."""
+    auto_tag = "Auto-generated" if cluster.get("auto") else "Manual"
+    cluster_key = cluster.get("cluster_key", "")
+    key_type = f" ({cluster_key.split('::', 1)[0]})" if cluster_key else ""
+    print(colorize(f"  Cluster: {cluster_name}", "bold"))
+    print(colorize(f"  Type: {auto_tag}{key_type}", "dim"))
+
+    for label, value in (
+        ("Priority", cluster.get("priority")),
+        ("Dependency order", cluster.get("dependency_order")),
+    ):
+        if value is not None:
+            print(colorize(f"  {label}: {value}", "dim"))
+
+    for label, value in (
+        ("Description", cluster.get("description") or ""),
+        ("Action", cluster.get("action") or ""),
+    ):
+        if value:
+            print(colorize(f"  {label}: {value}", "dim"))
+
+
+def _print_cluster_steps(steps: list[object]) -> None:
+    """Render action steps for one cluster when present."""
+    if not steps:
+        return
+    done_count = sum(1 for step in steps if isinstance(step, dict) and step.get("done"))
+    print()
+    suffix = f" — {done_count}/{len(steps)} done" if done_count else ""
+    print(colorize(f"  Steps ({len(steps)}){suffix}:", "dim"))
+    for idx, step in enumerate(steps, 1):
+        print_step(idx, step, colorize_fn=colorize)
+
+
+def _print_cluster_members(args: argparse.Namespace, issue_ids: list[str]) -> None:
+    """Render cluster member IDs with best-effort issue context."""
+    print()
+    if not issue_ids:
+        print(colorize("  Members: (none)", "dim"))
+        return
+
+    issues = _load_issues_best_effort(args)
+    print(colorize(f"  Members ({len(issue_ids)}):", "dim"))
+    for idx, fid in enumerate(issue_ids, 1):
+        _print_cluster_member(idx, fid, issues.get(fid))
+
+
+def _print_cluster_commands(cluster_name: str) -> None:
+    """Render the standard cluster follow-up commands."""
+    print()
+    print(colorize("  Commands:", "dim"))
+    print(colorize(f'    Resolve all:  desloppify plan resolve "{cluster_name}" --note "<what>" --attest "..."', "dim"))
+    print(colorize(f"    Drill in:     desloppify next --cluster {cluster_name} --count 10", "dim"))
+    print(colorize(f"    Skip:         desloppify plan skip {cluster_name}", "dim"))
+
+
 def _cmd_cluster_show(args: argparse.Namespace) -> None:
     cluster_name: str = getattr(args, "cluster_name", "")
     plan = load_plan()
@@ -40,48 +97,10 @@ def _cmd_cluster_show(args: argparse.Namespace) -> None:
         print(colorize(f"  Cluster {cluster_name!r} does not exist.", "red"))
         return
 
-    auto_tag = "Auto-generated" if cluster.get("auto") else "Manual"
-    cluster_key = cluster.get("cluster_key", "")
-    key_type = f" ({cluster_key.split('::', 1)[0]})" if cluster_key else ""
-    print(colorize(f"  Cluster: {cluster_name}", "bold"))
-    print(colorize(f"  Type: {auto_tag}{key_type}", "dim"))
-    priority = cluster.get("priority")
-    if priority is not None:
-        print(colorize(f"  Priority: {priority}", "dim"))
-    dep_order = cluster.get("dependency_order")
-    if dep_order is not None:
-        print(colorize(f"  Dependency order: {dep_order}", "dim"))
-    desc = cluster.get("description") or ""
-    if desc:
-        print(colorize(f"  Description: {desc}", "dim"))
-    action = cluster.get("action") or ""
-    if action:
-        print(colorize(f"  Action: {action}", "dim"))
-
-    steps = cluster.get("action_steps") or []
-    if steps:
-        done_count = sum(1 for s in steps if isinstance(s, dict) and s.get("done", False))
-        print()
-        suffix = f" — {done_count}/{len(steps)} done" if done_count else ""
-        print(colorize(f"  Steps ({len(steps)}){suffix}:", "dim"))
-        for i, step in enumerate(steps, 1):
-            print_step(i, step, colorize_fn=colorize)
-
-    issue_ids = cluster.get("issue_ids", [])
-    print()
-    if not issue_ids:
-        print(colorize("  Members: (none)", "dim"))
-    else:
-        issues = _load_issues_best_effort(args)
-        print(colorize(f"  Members ({len(issue_ids)}):", "dim"))
-        for idx, fid in enumerate(issue_ids, 1):
-            _print_cluster_member(idx, fid, issues.get(fid))
-
-    print()
-    print(colorize("  Commands:", "dim"))
-    print(colorize(f'    Resolve all:  desloppify plan resolve "{cluster_name}" --note "<what>" --attest "..."', "dim"))
-    print(colorize(f"    Drill in:     desloppify next --cluster {cluster_name} --count 10", "dim"))
-    print(colorize(f"    Skip:         desloppify plan skip {cluster_name}", "dim"))
+    _print_cluster_header(cluster_name, cluster)
+    _print_cluster_steps(cluster.get("action_steps") or [])
+    _print_cluster_members(args, cluster.get("issue_ids", []))
+    _print_cluster_commands(cluster_name)
 
 
 def _sorted_clusters_by_queue_pos(
@@ -141,6 +160,37 @@ def _print_cluster_list_verbose(
     print()
 
 
+def _print_missing_cluster_steps(gaps: list[tuple[str, list[str]]]) -> None:
+    """Render clusters that still need action-step enrichment."""
+    print(colorize(f"  {len(gaps)} cluster(s) need action steps:", "bold"))
+    for name, missing in gaps:
+        print(colorize(f"    {name}: missing {', '.join(missing)}", "yellow"))
+    print()
+    print(colorize("  Fix with:", "dim"))
+    print(colorize('    desloppify plan cluster update <name> --description "..." --steps "step1" "step2"', "dim"))
+    print(colorize('    desloppify plan cluster update <name> --add-step "step title" --detail "sub-details"', "dim"))
+
+
+def _print_cluster_list_compact(
+    sorted_clusters: list[tuple[str, dict]],
+    min_pos_cache: dict[str, int],
+    active: str | None,
+) -> None:
+    """Render the compact cluster list view."""
+    print(colorize("  Clusters (ordered by priority/queue position):", "bold"))
+    for name, cluster in sorted_clusters:
+        min_p = min_pos_cache[name]
+        pos_str = f"#{min_p}" if min_p < 999_999 else "—"
+        priority = cluster.get("priority")
+        pri_tag = f" [P{priority}]" if priority is not None else ""
+        member_count = len(cluster.get("issue_ids", []))
+        desc = cluster.get("description") or ""
+        marker = " (focused)" if name == active else ""
+        desc_str = f" — {desc}" if desc else ""
+        auto_tag = " [auto]" if cluster.get("auto") else ""
+        print(f"    {pos_str:>5} {pri_tag} {name}: {member_count} items{auto_tag}{desc_str}{marker}")
+
+
 def _cmd_cluster_list(args: argparse.Namespace) -> None:
     plan = load_plan()
     clusters = plan.get("clusters", {})
@@ -162,31 +212,14 @@ def _cmd_cluster_list(args: argparse.Namespace) -> None:
         if not gaps:
             print(colorize("  All clusters have action steps.", "green"))
             return
-        print(colorize(f"  {len(gaps)} cluster(s) need action steps:", "bold"))
-        for name, missing in gaps:
-            print(colorize(f"    {name}: missing {', '.join(missing)}", "yellow"))
-        print()
-        print(colorize("  Fix with:", "dim"))
-        print(colorize('    desloppify plan cluster update <name> --description "..." --steps "step1" "step2"', "dim"))
-        print(colorize('    desloppify plan cluster update <name> --add-step "step title" --detail "sub-details"', "dim"))
+        _print_missing_cluster_steps(gaps)
         return
 
     if verbose:
         _print_cluster_list_verbose(sorted_clusters, min_pos_cache, active)
         return
 
-    print(colorize("  Clusters (ordered by priority/queue position):", "bold"))
-    for name, cluster in sorted_clusters:
-        min_p = min_pos_cache[name]
-        pos_str = f"#{min_p}" if min_p < 999_999 else "—"
-        priority = cluster.get("priority")
-        pri_tag = f" [P{priority}]" if priority is not None else ""
-        member_count = len(cluster.get("issue_ids", []))
-        desc = cluster.get("description") or ""
-        marker = " (focused)" if name == active else ""
-        desc_str = f" — {desc}" if desc else ""
-        auto_tag = " [auto]" if cluster.get("auto") else ""
-        print(f"    {pos_str:>5} {pri_tag} {name}: {member_count} items{auto_tag}{desc_str}{marker}")
+    _print_cluster_list_compact(sorted_clusters, min_pos_cache, active)
 
 
 __all__ = ["_cmd_cluster_list", "_cmd_cluster_show"]
