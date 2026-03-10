@@ -21,6 +21,7 @@ def _plan_with_triage_stages(*confirmed_stages: str) -> dict:
             "stage": name,
             "report": f"Report for {name}",
             "timestamp": "2025-06-01T00:00:00Z",
+            "confirmed_at": "2025-06-01T00:01:00Z",
         }
     return plan
 
@@ -70,6 +71,15 @@ class TestBlockedTriageStages:
         plan = empty_plan()
         plan["queue_order"] = ["some::issue"]
         assert _blocked_triage_stages(plan) == {}
+
+    def test_missing_queue_id_for_unconfirmed_stage_still_blocks_later_stage(self):
+        plan = empty_plan()
+        plan["queue_order"] = ["triage::enrich", "triage::sense-check", "triage::commit"]
+        plan["epic_triage_meta"] = {
+            "triage_stages": {"organize": {"report": "cluster plan"}},
+        }
+        blocked = _blocked_triage_stages(plan)
+        assert blocked["triage::enrich"] == ["triage::organize"]
 
 
 # ── Integration tests through cmd_plan_resolve ────────────────

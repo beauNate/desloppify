@@ -109,8 +109,9 @@ _CLI_REFERENCE_TEMPLATE = """\
 
 ### Skip/dismiss
 ```
-{cli_command} plan skip --permanent <pattern> --note "<reason>" --attest "<attestation>"
+{cli_command} plan skip --permanent <pattern> --note "<reason>" --attest "I have reviewed this triage skip against the code and I am not gaming the score by suppressing a real defect."
 ```
+**Important:** The --attest value MUST contain the words "reviewed" and "not gaming" (exact phrases required by validation).
 
 ### Effort tags
 Valid values: trivial, small, medium, large. Set on steps via --effort flag.

@@ -142,6 +142,7 @@ class ScanRuntime:
     zone_overrides: dict[str, object] | None
     reset_subjective_count: int = 0
     coverage_warnings: list[DetectorCoverageRecord] = field(default_factory=list)
+    force_rescan: bool = False
 
 
 @dataclass
@@ -290,6 +291,7 @@ def prepare_scan_runtime(args: argparse.Namespace) -> ScanRuntime:
         zone_overrides=zone_overrides,
         reset_subjective_count=reset_subjective_count,
         coverage_warnings=coverage_warnings,
+        force_rescan=bool(getattr(args, "force_rescan", False)),
     )
 
 

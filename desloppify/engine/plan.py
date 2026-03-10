@@ -159,6 +159,8 @@ from desloppify.engine._plan.constants import (
     WORKFLOW_PREFIX,
     WORKFLOW_SCORE_CHECKPOINT_ID,
     QueueSyncResult,
+    confirmed_triage_stage_names,
+    recorded_unconfirmed_triage_stage_names,
 )
 
 # --- sync: dimensions ------------------------------------------------------

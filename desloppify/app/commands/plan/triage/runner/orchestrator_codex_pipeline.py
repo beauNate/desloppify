@@ -665,7 +665,7 @@ def run_codex_pipeline(
 
     repo_root = get_project_root()
     plan = resolved_services.load_plan()
-    ensure_triage_started(plan, resolved_services)
+    ensure_triage_started(plan, resolved_services, runner="codex")
 
     stamp = run_stamp()
     desloppify_dir = repo_root / ".desloppify"

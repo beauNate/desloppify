@@ -100,6 +100,8 @@ def build_triage_stage_items(plan: dict, state: dict) -> list[WorkQueueItem]:
     from desloppify.engine._plan.constants import (
         TRIAGE_IDS,
         TRIAGE_STAGE_IDS,
+        confirmed_triage_stage_names,
+        recorded_unconfirmed_triage_stage_names,
     )
     from desloppify.engine._plan.triage_playbook import (
         TRIAGE_STAGE_DEPENDENCIES,
@@ -111,12 +113,19 @@ def build_triage_stage_items(plan: dict, state: dict) -> list[WorkQueueItem]:
 
     order = plan.get("queue_order", [])
     order_set = set(order)
-    present = order_set & TRIAGE_IDS
-    if not present:
-        return []
-
+    present_ids = order_set & TRIAGE_IDS
     meta = plan.get("epic_triage_meta", {})
-    confirmed = set(meta.get("triage_stages", {}).keys())
+    confirmed = confirmed_triage_stage_names(meta)
+    recorded_unconfirmed = recorded_unconfirmed_triage_stage_names(meta)
+    stage_names = ("observe", "reflect", "organize", "enrich", "sense-check", "commit")
+    present_names = {
+        name
+        for sid, name in zip(TRIAGE_STAGE_IDS, stage_names, strict=False)
+        if sid in present_ids
+    }
+    present_names.update(recorded_unconfirmed)
+    if not present_names:
+        return []
 
     issues = state.get("issues", {})
     open_review_count = sum(
@@ -126,11 +135,9 @@ def build_triage_stage_items(plan: dict, state: dict) -> list[WorkQueueItem]:
     )
 
     label_map = dict(TRIAGE_STAGE_LABELS)
-    stage_names = ("observe", "reflect", "organize", "enrich", "sense-check", "commit")
-
     items: list[WorkQueueItem] = []
     for sid, name in zip(TRIAGE_STAGE_IDS, stage_names, strict=False):
-        if sid not in present:
+        if name not in present_names:
             continue
         if name in confirmed:
             continue
@@ -138,8 +145,7 @@ def build_triage_stage_items(plan: dict, state: dict) -> list[WorkQueueItem]:
         # Compute blocked_by: dependency stages that are still in the queue
         deps = TRIAGE_STAGE_DEPENDENCIES.get(name, set())
         blocked_by = sorted(
-            f"triage::{dep}" for dep in deps
-            if f"triage::{dep}" in present and dep not in confirmed
+            f"triage::{dep}" for dep in deps if dep in present_names and dep not in confirmed
         )
 
         only_stages = None if name == "commit" else name

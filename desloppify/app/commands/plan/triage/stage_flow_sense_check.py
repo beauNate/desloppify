@@ -148,6 +148,35 @@ def run_stage_sense_check(
         print(colorize_fn(f"  Report too short: {len(report)} chars (minimum 100).", "red"))
         return
 
+    # --- Sense-check evidence: file paths + cluster names ---
+    from ._stage_evidence_parsing import (
+        EvidenceFailure,
+        format_evidence_failures,
+        validate_report_has_file_paths,
+        validate_report_references_clusters,
+    )
+    from .helpers import manual_clusters_with_issues
+
+    sc_evidence_failures: list[EvidenceFailure] = []
+    path_failures = validate_report_has_file_paths(report)
+    if path_failures:
+        sc_evidence_failures.extend(path_failures)
+
+    cluster_names = manual_clusters_with_issues(plan)
+    cluster_failures = validate_report_references_clusters(report, cluster_names)
+    if cluster_failures:
+        sc_evidence_failures.extend(cluster_failures)
+
+    blocking_ev = [f for f in sc_evidence_failures if f.blocking]
+    advisory_ev = [f for f in sc_evidence_failures if not f.blocking]
+    if blocking_ev:
+        msg = format_evidence_failures(blocking_ev, stage_label="sense-check")
+        print(colorize_fn(msg, "red"))
+        return
+    if advisory_ev:
+        msg = format_evidence_failures(advisory_ev, stage_label="sense-check")
+        print(colorize_fn(msg, "yellow"))
+
     stages = meta.setdefault("triage_stages", {})
     cleared = record_sense_check_stage_fn(
         stages,

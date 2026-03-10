@@ -79,7 +79,29 @@ def _issue_context_for_stage(stage: str, triage_input: TriageInput) -> str:
     return _compact_issue_summary(triage_input)
 
 
-def _relevant_prior_reports(stage: str, prior_reports: dict[str, str]) -> list[tuple[str, str]]:
+def _format_assessments_table(assessments: list[dict]) -> str:
+    """Format structured observe assessments as a readable table for downstream stages."""
+    if not assessments:
+        return ""
+    lines = ["### Structured Observe Assessments\n"]
+    lines.append("| Hash | Verdict | Recommendation |")
+    lines.append("|------|---------|----------------|")
+    for a in assessments:
+        h = a.get("hash", "?")
+        v = a.get("verdict", "?")
+        r = a.get("recommendation", "")
+        # Truncate recommendation for table readability
+        if len(r) > 80:
+            r = r[:77] + "..."
+        lines.append(f"| {h} | {v} | {r} |")
+    return "\n".join(lines)
+
+
+def _relevant_prior_reports(
+    stage: str,
+    prior_reports: dict[str, str],
+    stages_data: dict | None = None,
+) -> list[tuple[str, str]]:
     """Return the stage reports that matter for the current stage."""
     wanted = {
         "reflect": ("observe",),
@@ -87,7 +109,18 @@ def _relevant_prior_reports(stage: str, prior_reports: dict[str, str]) -> list[t
         "enrich": ("organize",),
         "sense-check": ("organize", "enrich"),
     }.get(stage, tuple(prior_reports))
-    return [(name, prior_reports[name]) for name in wanted if name in prior_reports]
+    result = [(name, prior_reports[name]) for name in wanted if name in prior_reports]
+
+    # For reflect stage, append structured assessments from observe
+    if stage == "reflect" and stages_data:
+        observe_data = stages_data.get("observe", {})
+        assessments = observe_data.get("assessments", [])
+        if assessments:
+            table = _format_assessments_table(assessments)
+            if table:
+                result.append(("observe-assessments", table))
+
+    return result
 
 
 def build_stage_prompt(
@@ -98,6 +131,7 @@ def build_stage_prompt(
     repo_root: Path,
     mode: PromptMode = "self_record",
     cli_command: str = "desloppify",
+    stages_data: dict | None = None,
 ) -> str:
     """Build a complete subagent prompt for a triage stage."""
     parts: list[str] = []
@@ -112,7 +146,7 @@ def build_stage_prompt(
     )
 
     # Prior stage reports
-    relevant_prior_reports = _relevant_prior_reports(stage, prior_reports)
+    relevant_prior_reports = _relevant_prior_reports(stage, prior_reports, stages_data)
     if relevant_prior_reports:
         parts.append("## Prior Stage Reports\n")
         for prior_stage, report in relevant_prior_reports:
@@ -161,7 +195,7 @@ def cmd_stage_prompt(
         if report:
             prior_reports[prior_stage] = report
 
-    prompt = build_stage_prompt(stage, si, prior_reports, repo_root=repo_root)
+    prompt = build_stage_prompt(stage, si, prior_reports, repo_root=repo_root, stages_data=stages)
     print(prompt)
 
 

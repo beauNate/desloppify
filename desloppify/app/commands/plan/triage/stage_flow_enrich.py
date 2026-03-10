@@ -73,6 +73,37 @@ def run_stage_enrich(
             print(colorize_fn("  Or pass --attestation to auto-confirm organize inline.", "dim"))
             return
 
+    # --- Check cluster_update operations since organize ---
+    if not is_reuse:
+        organize_ts = stages.get("organize", {}).get("timestamp", "")
+        if organize_ts:
+            from .helpers import count_log_activity_since
+
+            activity = count_log_activity_since(plan, organize_ts)
+            update_ops = activity.get("cluster_update", 0)
+            if update_ops == 0:
+                if attestation and len(attestation.strip()) >= 40:
+                    print(colorize_fn(
+                        "  Note: 0 cluster_update ops logged since organize. "
+                        "Proceeding with attestation override.",
+                        "yellow",
+                    ))
+                else:
+                    print(colorize_fn(
+                        "  Cannot enrich: no cluster_update operations logged since organize.",
+                        "red",
+                    ))
+                    print(colorize_fn(
+                        "  Enriching steps requires running cluster update commands.\n"
+                        '  e.g. desloppify plan cluster update <name> --update-step N --detail "..."',
+                        "dim",
+                    ))
+                    print(colorize_fn(
+                        '  Override: pass --attestation "reason why no update ops" (40+ chars).',
+                        "dim",
+                    ))
+                    return
+
     underspec = underspecified_steps_fn(plan)
     total_bare = sum(n for _, n, _ in underspec)
 

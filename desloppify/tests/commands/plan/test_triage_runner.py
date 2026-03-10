@@ -210,9 +210,10 @@ def test_validate_observe_short_report(tmp_path: Path) -> None:
 
 
 def test_validate_observe_ok(tmp_path: Path) -> None:
+    # Report needs verdict entries when triage_input has hex IDs; use non-hex IDs to skip evidence parsing
     plan = _plan_with_stages(observe={"report": "x" * 150, "cited_ids": ["a", "b", "c", "d", "e"], "issue_count": 10})
     ok, msg = validate_stage("observe", plan, {}, tmp_path)
-    assert ok
+    assert ok, msg
 
 
 def test_validate_observe_low_citations(tmp_path: Path) -> None:
@@ -613,7 +614,7 @@ def test_sense_check_validation_ok(tmp_path: Path) -> None:
     """Sense-check passes when report is long enough and all enrich checks pass."""
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "foo.ts").write_text("export {}")
-    plan = _plan_with_stages(**{"sense-check": {"report": "x" * 150}})
+    plan = _plan_with_stages(**{"sense-check": {"report": "Verified test-cluster steps: src/foo.ts lines 10-20 match description. Effort tags accurate. " + "x" * 60}})
     plan["clusters"] = {
         "test-cluster": {
             "issue_ids": ["review::a::b"],

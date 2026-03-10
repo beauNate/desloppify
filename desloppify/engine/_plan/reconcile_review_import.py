@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from desloppify.engine._plan.schema import PlanModel, ensure_plan_defaults
 from desloppify.engine._plan.sync_triage import (
@@ -19,6 +19,8 @@ class ReviewImportSyncResult:
     new_ids: set[str]
     added_to_queue: list[str]
     triage_injected: bool
+    triage_injected_ids: list[str] = field(default_factory=list)
+    triage_deferred: bool = False
 
 
 def sync_plan_after_review_import(
@@ -49,14 +51,16 @@ def sync_plan_after_review_import(
 
     # Inject triage stages if needed (policy enables mid-cycle guard)
     triage_result = sync_triage_needed(plan, state, policy=policy)
-    triage_injected = bool(
-        triage_result and getattr(triage_result, "injected", False)
-    )
+    triage_injected_ids = list(getattr(triage_result, "injected", []) or [])
+    triage_injected = bool(triage_injected_ids)
+    triage_deferred = bool(triage_result and getattr(triage_result, "deferred", False))
 
     return ReviewImportSyncResult(
         new_ids=new_ids,
         added_to_queue=added,
         triage_injected=triage_injected,
+        triage_injected_ids=triage_injected_ids,
+        triage_deferred=triage_deferred,
     )
 
 

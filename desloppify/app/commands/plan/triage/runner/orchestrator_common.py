@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from desloppify.base.output.terminal import colorize
+from desloppify.engine._plan.constants import TRIAGE_STAGE_IDS
 
 from ..helpers import has_triage_in_queue, inject_triage_stages
 from ..services import TriageServices
@@ -31,12 +32,24 @@ def run_stamp() -> str:
 def ensure_triage_started(
     plan: dict[str, Any],
     services: TriageServices,
+    *,
+    runner: str | None = None,
 ) -> dict[str, Any]:
     """Auto-start triage if not started. Returns updated plan."""
     if not has_triage_in_queue(plan):
         inject_triage_stages(plan)
         meta = plan.setdefault("epic_triage_meta", {})
         meta.setdefault("triage_stages", {})
+        services.append_log_entry(
+            plan,
+            "triage_auto_start",
+            actor="system",
+            detail={
+                "source": "runner_auto_start",
+                "runner": runner,
+                "injected_stage_ids": list(TRIAGE_STAGE_IDS),
+            },
+        )
         services.save_plan(plan)
         print(colorize("  Planning mode auto-started.", "cyan"))
     return plan

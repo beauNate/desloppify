@@ -59,6 +59,8 @@ def test_observe_and_sense_prompt_builders_include_expected_context(tmp_path) ->
     assert "observe batch 1/2" in observe
     assert "naming_quality" in observe
     assert "[review::s" not in observe  # hash prefix truncation is used
+    assert "files_read" in observe
+    assert "Do NOT use the old one-line" in observe
 
     plan = {
         "clusters": {
@@ -169,7 +171,7 @@ def test_record_sense_stage_and_run_stage_sense_check(tmp_path, capsys) -> None:
         }
     }
     services = _Services(plan=plan)
-    args = argparse.Namespace(report="y" * 120)
+    args = argparse.Namespace(report="Verified all steps: src/services/main.ts lines 10-50 match descriptions. Structure and content accurate. " + "y" * 30)
 
     def _record_sense(stages: dict, *, report: str, existing_stage, is_reuse):
         stages["sense-check"] = {

@@ -27,6 +27,7 @@ from desloppify.engine.plan import (
     WORKFLOW_CREATE_PLAN_ID,
     WORKFLOW_SCORE_CHECKPOINT_ID,
     append_log_entry,
+    confirmed_triage_stage_names,
     auto_complete_steps,
     load_plan,
     purge_ids,
@@ -94,7 +95,7 @@ def cmd_plan_resolve(args: argparse.Namespace) -> None:
             if triage_ever_completed:
                 missing: set[str] = set()
             else:
-                confirmed_stages = set(meta.get("triage_stages", {}).keys())
+                confirmed_stages = confirmed_triage_stage_names(meta)
                 required_stages = {"observe", "reflect", "organize", "enrich", "commit"}
                 missing = required_stages - confirmed_stages
 

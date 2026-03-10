@@ -222,6 +222,7 @@ def test_display_layout_renderers(monkeypatch, capsys) -> None:
         resolved_since_last=set(),
     )
     stages = {"observe": {"report": "observe report"}, "reflect": {"report": "reflect report"}}
+    meta = {"strategy_summary": "Legacy strategy summary"}
     plan = {
         "clusters": {
             "manual": {
@@ -234,8 +235,8 @@ def test_display_layout_renderers(monkeypatch, capsys) -> None:
     }
     state = {"issues": si.open_issues}
 
-    display_layout_mod.print_dashboard_header(si, stages, {}, plan)
-    display_layout_mod.print_action_guidance(stages, {}, si, plan)
+    display_layout_mod.print_dashboard_header(si, stages, meta, plan)
+    display_layout_mod.print_action_guidance(stages, meta, si, plan)
     display_layout_mod.print_prior_stage_reports(stages)
     display_layout_mod.print_issues_by_dimension(si.open_issues)
     display_layout_mod.show_plan_summary(plan, state)
@@ -245,6 +246,7 @@ def test_display_layout_renderers(monkeypatch, capsys) -> None:
     assert "stage-progress" in out
     assert "Review issues by dimension" in out
     assert "Coverage:" in out
+    assert "reusing the current enriched cluster plan" in out
 
 
 def test_orchestrator_common_helpers(monkeypatch) -> None:
@@ -257,6 +259,7 @@ def test_orchestrator_common_helpers(monkeypatch) -> None:
     assert len(stamp) == 15
 
     saved: list[dict] = []
+    entries: list[tuple[str, dict]] = []
     monkeypatch.setattr(orchestrator_common_mod, "has_triage_in_queue", lambda _plan: False)
     monkeypatch.setattr(
         orchestrator_common_mod,
@@ -264,14 +267,27 @@ def test_orchestrator_common_helpers(monkeypatch) -> None:
         lambda plan: plan.setdefault("queue_order", []).append("triage::observe"),
     )
     plan = {"queue_order": []}
-    services = SimpleNamespace(save_plan=lambda p: saved.append(p))
-    updated = orchestrator_common_mod.ensure_triage_started(plan, services)
+    services = SimpleNamespace(
+        save_plan=lambda p: saved.append(p),
+        append_log_entry=lambda _plan, action, **kwargs: entries.append((action, kwargs["detail"])),
+    )
+    updated = orchestrator_common_mod.ensure_triage_started(plan, services, runner="codex")
     assert "triage::observe" in updated["queue_order"]
     assert saved
+    assert entries == [
+        (
+            "triage_auto_start",
+            {
+                "source": "runner_auto_start",
+                "runner": "codex",
+                "injected_stage_ids": list(orchestrator_common_mod.TRIAGE_STAGE_IDS),
+            },
+        )
+    ]
 
 
 def test_orchestrator_claude_prints_instructions(monkeypatch, capsys) -> None:
-    monkeypatch.setattr(orchestrator_claude_mod, "ensure_triage_started", lambda _plan, _svc: None)
+    monkeypatch.setattr(orchestrator_claude_mod, "ensure_triage_started", lambda *_a, **_k: None)
     services = SimpleNamespace(load_plan=lambda: {}, save_plan=lambda _plan: None)
     orchestrator_claude_mod.run_claude_orchestrator(argparse.Namespace(), services=services)
     out = capsys.readouterr().out

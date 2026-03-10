@@ -162,12 +162,15 @@ def sync_triage_needed(
 
         if new_since_triage:
             # Mid-cycle guard: defer injection while objective work remains.
+            # Triage injection itself is safe (appends to back of queue),
+            # but auto-clustering (guarded separately in plan_reconcile.py)
+            # would regenerate queue structure if triggered mid-cycle.
             if is_mid_cycle(plan) and has_objective_backlog(state, policy):
                 meta["triage_recommended"] = True
                 plan["epic_triage_meta"] = meta
                 result.deferred = True
             else:
-                # Inject: either pre-cycle, end-of-cycle, or no objective work
+                # Inject: either pre-cycle, end-of-cycle, or queue clear
                 meta.pop("triage_recommended", None)
                 plan["epic_triage_meta"] = meta
                 injected = _inject_pending_triage_stages(

@@ -3,7 +3,13 @@
 from __future__ import annotations
 
 from desloppify.base.output.terminal import colorize
-from desloppify.engine.plan import TRIAGE_IDS, TRIAGE_STAGE_DEPENDENCIES, TRIAGE_STAGE_IDS
+from desloppify.engine.plan import (
+    TRIAGE_IDS,
+    TRIAGE_STAGE_DEPENDENCIES,
+    TRIAGE_STAGE_IDS,
+    confirmed_triage_stage_names,
+    recorded_unconfirmed_triage_stage_names,
+)
 
 _CLUSTER_INDIVIDUAL_THRESHOLD = 10
 
@@ -81,20 +87,25 @@ def resolve_synthetic_ids(patterns: list[str]) -> tuple[list[str], list[str]]:
 def blocked_triage_stages(plan: dict) -> dict[str, list[str]]:
     """Return triage stages that are blocked by unmet dependencies."""
     order_set = set(plan.get("queue_order", []))
-    present = order_set & TRIAGE_IDS
-    if not present:
+    stage_names = ("observe", "reflect", "organize", "enrich", "sense-check", "commit")
+    present_names = {
+        name
+        for stage_id, name in zip(TRIAGE_STAGE_IDS, stage_names, strict=False)
+        if stage_id in (order_set & TRIAGE_IDS)
+    }
+    present_names.update(recorded_unconfirmed_triage_stage_names(plan.get("epic_triage_meta", {})))
+    if not present_names:
         return {}
 
-    confirmed = set(plan.get("epic_triage_meta", {}).get("triage_stages", {}).keys())
-    stage_names = ("observe", "reflect", "organize", "enrich", "sense-check", "commit")
+    confirmed = confirmed_triage_stage_names(plan.get("epic_triage_meta", {}))
 
     blocked: dict[str, list[str]] = {}
     for stage_id, name in zip(TRIAGE_STAGE_IDS, stage_names, strict=False):
-        if stage_id not in present or name in confirmed:
+        if name not in present_names or name in confirmed:
             continue
         deps = TRIAGE_STAGE_DEPENDENCIES.get(name, set())
         unmet = sorted(
-            f"triage::{dep}" for dep in deps if f"triage::{dep}" in present and dep not in confirmed
+            f"triage::{dep}" for dep in deps if dep in present_names and dep not in confirmed
         )
         if unmet:
             blocked[stage_id] = unmet

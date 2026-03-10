@@ -75,6 +75,49 @@ def test_sync_plan_after_import_handles_plan_exceptions(monkeypatch, capsys) -> 
     assert "skipped plan sync after review import" in out
 
 
+def test_sync_plan_after_import_logs_triage_provenance(monkeypatch) -> None:
+    plan: dict = {"queue_order": []}
+    entries: list[tuple[str, dict]] = []
+
+    monkeypatch.setattr(plan_mod, "has_living_plan", lambda: True)
+    monkeypatch.setattr(plan_mod, "load_plan", lambda: plan)
+    monkeypatch.setattr(plan_mod, "save_plan", lambda _plan: None)
+    monkeypatch.setattr(plan_mod, "current_unscored_ids", lambda _state: set())
+    monkeypatch.setattr(plan_mod, "purge_ids", lambda _plan, _ids: None)
+    monkeypatch.setattr(
+        plan_mod,
+        "sync_plan_after_review_import",
+        lambda _plan, _state: SimpleNamespace(
+            new_ids={"review::x"},
+            added_to_queue=["review::x"],
+            triage_injected=True,
+            triage_injected_ids=["triage::observe", "triage::reflect"],
+            triage_deferred=False,
+        ),
+    )
+    monkeypatch.setattr(plan_mod, "sync_score_checkpoint_needed", lambda _plan, _state: SimpleNamespace(changes=False))
+    monkeypatch.setattr(plan_mod, "sync_import_scores_needed", lambda _plan, _state, assessment_mode: SimpleNamespace(changes=False))
+    monkeypatch.setattr(plan_mod, "sync_create_plan_needed", lambda _plan, _state: SimpleNamespace(changes=False))
+    monkeypatch.setattr(
+        plan_mod,
+        "append_log_entry",
+        lambda _plan, action, **kwargs: entries.append((action, kwargs["detail"])),
+    )
+
+    plan_sync_mod.sync_plan_after_import(
+        state={},
+        diff={"new": 1, "reopened": 0},
+        assessment_mode="issues_only",
+    )
+
+    assert entries
+    action, detail = entries[-1]
+    assert action == "review_import_sync"
+    assert detail["triage_injected"] is True
+    assert detail["triage_injected_ids"] == ["triage::observe", "triage::reflect"]
+    assert detail["triage_deferred"] is False
+
+
 def test_print_import_results_writes_query_payload(monkeypatch) -> None:
     captured: list[dict] = []
     monkeypatch.setattr(results_mod.narrative_mod, "compute_narrative", lambda *_a, **_k: {"summary": "ok"})

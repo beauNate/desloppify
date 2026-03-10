@@ -654,8 +654,18 @@ def test_orphaned_cluster_detected() -> None:
             },
         },
         "epic_triage_meta": {
-            "triage_stages": {"organize": {"report": "done"}},
+            "triage_stages": {
+                "organize": {
+                    "report": "Organized issues into good-cluster with proper structure and priorities explained thoroughly here.",
+                },
+                "reflect": {"timestamp": "2020-01-01T00:00:00Z"},
+            },
         },
+        "execution_log": [
+            {"timestamp": "2020-01-02T00:00:00Z", "action": "cluster_create"},
+            {"timestamp": "2020-01-02T00:00:01Z", "action": "cluster_add"},
+            {"timestamp": "2020-01-02T00:00:02Z", "action": "cluster_update"},
+        ],
     }
     state = {"issues": {"review::a::b": {"status": "open", "detector": "review"}}}
     ok, msg = validate_stage("organize", plan, state, Path("/tmp"))
@@ -676,8 +686,18 @@ def test_no_orphaned_cluster_warning() -> None:
             },
         },
         "epic_triage_meta": {
-            "triage_stages": {"organize": {"report": "done"}},
+            "triage_stages": {
+                "organize": {
+                    "report": "Organized issues into good-cluster with proper structure and priorities explained thoroughly here.",
+                },
+                "reflect": {"timestamp": "2020-01-01T00:00:00Z"},
+            },
         },
+        "execution_log": [
+            {"timestamp": "2020-01-02T00:00:00Z", "action": "cluster_create"},
+            {"timestamp": "2020-01-02T00:00:01Z", "action": "cluster_add"},
+            {"timestamp": "2020-01-02T00:00:02Z", "action": "cluster_update"},
+        ],
     }
     state = {"issues": {"review::a::b": {"status": "open", "detector": "review"}}}
     ok, msg = validate_stage("organize", plan, state, Path("/tmp"))

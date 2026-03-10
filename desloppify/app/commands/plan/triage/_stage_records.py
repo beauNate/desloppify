@@ -26,6 +26,7 @@ def record_observe_stage(
     cited_ids: list[str],
     existing_stage: dict | None,
     is_reuse: bool,
+    assessments: list[dict] | None = None,
 ) -> list[str]:
     stages["observe"] = {
         "stage": "observe",
@@ -34,6 +35,8 @@ def record_observe_stage(
         "timestamp": utc_now(),
         "issue_count": issue_count,
     }
+    if assessments is not None:
+        stages["observe"]["assessments"] = assessments
     if is_reuse and existing_stage and existing_stage.get("confirmed_at"):
         stages["observe"]["confirmed_at"] = existing_stage["confirmed_at"]
         stages["observe"]["confirmed_text"] = existing_stage.get("confirmed_text", "")
@@ -100,6 +103,8 @@ def record_confirm_existing_completion(
         "issue_count": issue_count,
         "confirmed_at": utc_now(),
         "confirmed_text": confirmed_text,
+        "reused_existing_plan": True,
+        "completion_note": note,
     }
 
 

@@ -26,11 +26,46 @@ from desloppify.engine.plan import (
     sync_triage_needed,
     sync_unscored_dimensions,
 )
+from desloppify.engine._plan._sync_context import is_mid_cycle
+from desloppify.engine._plan.constants import (
+    SYNTHETIC_PREFIXES,
+)
 from desloppify.engine._work_queue.synthetic_workflow import (
     build_deferred_disposition_item,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _reset_cycle_for_force_rescan(plan: dict[str, object]) -> bool:
+    """Clear all cycle state when --force-rescan is used.
+
+    Force-rescan means "start over" — the old cycle's triage stages,
+    workflow items, subjective dimensions, plan-start scores, and triage
+    metadata are all stale and must be removed.
+    """
+    order: list[str] = plan.get("queue_order", [])
+    synthetic = [item for item in order if any(item.startswith(p) for p in SYNTHETIC_PREFIXES)]
+    if not synthetic and not plan.get("plan_start_scores"):
+        return False
+    for item in synthetic:
+        order.remove(item)
+    plan["plan_start_scores"] = {}
+    plan.pop("previous_plan_start_scores", None)
+    plan.pop("scan_count_at_plan_start", None)
+    meta = plan.get("epic_triage_meta", {})
+    if isinstance(meta, dict):
+        meta.pop("triage_recommended", None)
+    count = len(synthetic)
+    if count:
+        print(
+            colorize(
+                f"  Plan: force-rescan — removed {count} synthetic item(s) "
+                f"and reset cycle state.",
+                "yellow",
+            )
+        )
+    return True
 
 
 def _plan_has_user_content(plan: dict[str, object]) -> bool:
@@ -401,6 +436,24 @@ def _sync_post_scan_without_policy(
     return dirty
 
 
+def _is_mid_cycle_scan(plan: dict[str, object], state: state_mod.StateModel) -> bool:
+    """Return True when a plan cycle is active and queue items remain.
+
+    Extends ``is_mid_cycle`` (which checks ``plan_start_scores``) with an
+    additional queue-items guard — even if a cycle is nominally active, we
+    only skip destructive operations when work actually remains.
+
+    Mid-cycle scans (via --force-rescan or PHASE_TRANSITION gate) must NOT
+    regenerate clusters or inject triage stages — doing so wipes triage
+    state and reorders the queue, undoing prioritisation work.
+    """
+    if not is_mid_cycle(plan):
+        return False
+    order = plan.get("queue_order", [])
+    skipped = plan.get("skipped", {})
+    return any(item not in skipped for item in order)
+
+
 def _sync_post_scan_with_policy(
     *,
     plan: dict[str, object],
@@ -408,9 +461,19 @@ def _sync_post_scan_with_policy(
     target_strict: float,
     policy,
     cycle_just_completed: bool,
+    force_rescan: bool = False,
 ) -> bool:
-    """Run post-scan sync steps that require policy/cycle context."""
+    """Run post-scan sync steps that require policy/cycle context.
+
+    When running mid-cycle (plan_start_scores set, queue non-empty) or
+    via --force-rescan, skip auto-clustering and triage injection.  These
+    steps regenerate queue structure and issue IDs, which wipes triage
+    state and reorders the queue.  They only run at cycle boundaries
+    (pre-flight / post-flight).
+    """
     dirty = False
+    mid_cycle = _is_mid_cycle_scan(plan, state) or force_rescan
+
     if _sync_stale_and_log(
         plan,
         state,
@@ -418,24 +481,34 @@ def _sync_post_scan_with_policy(
         cycle_just_completed=cycle_just_completed,
     ):
         dirty = True
-    if _sync_auto_clusters_and_log(
-        plan,
-        state,
-        target_strict=target_strict,
-        policy=policy,
-        cycle_just_completed=cycle_just_completed,
-    ):
-        dirty = True
+    if not mid_cycle:
+        if _sync_auto_clusters_and_log(
+            plan,
+            state,
+            target_strict=target_strict,
+            policy=policy,
+            cycle_just_completed=cycle_just_completed,
+        ):
+            dirty = True
+    else:
+        print(
+            colorize(
+                "  Plan: mid-cycle scan — skipping cluster regeneration to "
+                "preserve queue state.",
+                "dim",
+            )
+        )
     if _sync_communicate_score_and_log(plan, state, policy=policy):
         dirty = True
     if _sync_create_plan_and_log(plan, state, policy=policy):
         dirty = True
     if _sync_triage_and_log(plan, state, policy=policy):
         dirty = True
-    if _sync_plan_start_scores_and_log(plan, state):
-        dirty = True
-    if _sync_postflight_scan_completion_and_log(plan, state):
-        dirty = True
+    if not force_rescan:
+        if _sync_plan_start_scores_and_log(plan, state):
+            dirty = True
+        if _sync_postflight_scan_completion_and_log(plan, state):
+            dirty = True
     return dirty
 
 
@@ -448,7 +521,14 @@ def reconcile_plan_post_scan(runtime: ScanRuntime) -> None:
         logger.warning("Plan reconciliation skipped (load failed): %s", exc)
         return
 
-    dirty = _sync_post_scan_without_policy(plan=plan, state=runtime.state)
+    force_rescan = getattr(runtime, "force_rescan", False)
+
+    # Force-rescan: clear all cycle state first.  The user explicitly chose
+    # to start over, so triage stages, workflow items, subjective dimensions,
+    # and plan-start scores from the old cycle are all stale.
+    dirty = _reset_cycle_for_force_rescan(plan) if force_rescan else False
+
+    dirty = _sync_post_scan_without_policy(plan=plan, state=runtime.state) or dirty
 
     # Policy must be computed after the without-policy steps, which mutate
     # plan (reconcile/prune) and state (unscored sync) before policy reads them.
@@ -462,6 +542,7 @@ def reconcile_plan_post_scan(runtime: ScanRuntime) -> None:
         target_strict=target_strict,
         policy=policy,
         cycle_just_completed=cycle_just_completed,
+        force_rescan=getattr(runtime, "force_rescan", False),
     ) or dirty
 
     if dirty:

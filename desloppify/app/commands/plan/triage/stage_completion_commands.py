@@ -7,19 +7,8 @@ import argparse
 from desloppify.base.output.terminal import colorize
 from desloppify.base.output.user_message import print_user_message
 
-from .helpers import (
-    apply_completion,
-    has_triage_in_queue,
-    manual_clusters_with_issues,
-    open_review_ids_from_state,
-    triage_coverage,
-)
-from .services import TriageServices, default_triage_services
 from ._stage_records import record_confirm_existing_completion
 from ._stage_rendering import _print_complete_summary
-from ._stage_validation_completion_stages import (
-    _auto_confirm_sense_check_for_complete,
-)
 from ._stage_validation import (
     _auto_confirm_enrich_for_complete,
     _auto_confirm_organize_for_complete,
@@ -32,11 +21,22 @@ from ._stage_validation import (
     _note_cites_new_issues_or_error,
     _require_enrich_stage_for_complete,
     _require_organize_stage_for_complete,
-    _require_sense_check_stage_for_complete,
     _require_prior_strategy_for_confirm,
+    _require_sense_check_stage_for_complete,
     _resolve_completion_strategy,
     _resolve_confirm_existing_strategy,
 )
+from ._stage_validation_completion_stages import (
+    _auto_confirm_sense_check_for_complete,
+)
+from .helpers import (
+    apply_completion,
+    has_triage_in_queue,
+    manual_clusters_with_issues,
+    open_review_ids_from_state,
+    triage_coverage,
+)
+from .services import TriageServices, default_triage_services
 
 
 def _cmd_triage_complete(
@@ -262,8 +262,20 @@ def _cmd_confirm_existing(
         detail={"confirmed_text": confirmed_text},
     )
 
-    apply_completion(args, plan, strategy, services=resolved_services)
-    print(colorize("  Confirmed existing plan — triage complete.", "green"))
+    apply_completion(
+        args,
+        plan,
+        strategy,
+        services=resolved_services,
+        completion_mode="confirm_existing",
+        completion_note=note or "",
+    )
+    print(
+        colorize(
+            "  Confirmed existing plan — reused the current enriched cluster plan.",
+            "green",
+        )
+    )
 
 
 def cmd_triage_complete(

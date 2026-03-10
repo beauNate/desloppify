@@ -90,7 +90,7 @@ def print_action_guidance(stages: dict, meta: dict, si: object, plan: dict) -> N
     if "observe" not in stages and has_only_additions and meta.get("strategy_summary"):
         print(colorize("  Two paths available:", "yellow"))
         print()
-        print(colorize("  To accept current queue (new items at end):", "cyan"))
+        print(colorize("  To reuse the existing enriched cluster plan (without rewriting clusters):", "cyan"))
         print('    desloppify plan triage --confirm-existing --note "..." --strategy "same" --confirmed "I have reviewed..."')
         print()
         print(colorize("  To re-prioritize and restructure:", "cyan"))
@@ -142,7 +142,8 @@ def print_action_guidance(stages: dict, meta: dict, si: object, plan: dict) -> N
 
         if meta.get("strategy_summary"):
             print()
-            print(colorize("  Or fast-track (if existing plan is still valid):", "dim"))
+            print(colorize("  Or fast-track by reusing the current enriched cluster plan:", "dim"))
+            print(colorize("    (This confirms the existing manual clusters; it does not materialize a new reflect blueprint.)", "dim"))
             print(f"    {TRIAGE_CMD_CONFIRM_EXISTING}")
     elif "enrich" not in stages:
         shallow = unenriched_clusters(plan)

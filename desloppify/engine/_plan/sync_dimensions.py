@@ -131,18 +131,18 @@ def sync_unscored_dimensions(
 ) -> QueueSyncResult:
     """Keep the plan queue in sync with unscored (placeholder) subjective dimensions.
 
-    1. **Prune** — remove ``subjective::*`` IDs from ``queue_order`` that are
-       no longer unscored AND not stale (avoids pruning stale IDs — that is
-       ``sync_stale_dimensions``' responsibility).
+    1. **Prune** — always remove ``subjective::*`` IDs from ``queue_order``
+       that are no longer unscored AND not stale (avoids pruning stale IDs —
+       that is ``sync_stale_dimensions``' responsibility).  Pruning runs even
+       mid-cycle to clean up items that were incorrectly injected by older
+       code that lacked the mid-cycle guard.
     2. **Inject** — append currently-unscored IDs to the *back* of
-       ``queue_order``.  Never reorders existing items.
+       ``queue_order``.  Never reorders existing items.  Skipped mid-cycle —
+       unscored dimensions surface at cycle boundaries only.
     """
     ensure_plan_defaults(plan)
     result = QueueSyncResult()
-
-    # Mid-cycle: don't inject unscored dimensions — they'll surface at cycle end.
-    if is_mid_cycle(plan):
-        return result
+    mid_cycle = is_mid_cycle(plan)
 
     unscored_ids = current_unscored_ids(state)
     stale_ids = stale_policy_mod.current_stale_ids(
@@ -151,29 +151,37 @@ def sync_unscored_dimensions(
     order: list[str] = plan["queue_order"]
     skipped_ids = _skipped_subjective_ids(plan)
 
-    # Unscored dimensions have never been reviewed — a permanent skip on a
-    # placeholder is premature (the scoring pipeline needs actual scores).
-    # Clear any skip entries so they resurface for initial review.
-    skipped_dict = plan.get("skipped", {})
-    if isinstance(skipped_dict, dict):
-        for sid in sorted(unscored_ids & skipped_ids):
-            skipped_dict.pop(sid, None)
-            result.resurfaced.append(sid)
-        skipped_ids -= unscored_ids
+    if not mid_cycle:
+        # Unscored dimensions have never been reviewed — a permanent skip on a
+        # placeholder is premature (the scoring pipeline needs actual scores).
+        # Clear any skip entries so they resurface for initial review.
+        skipped_dict = plan.get("skipped", {})
+        if isinstance(skipped_dict, dict):
+            for sid in sorted(unscored_ids & skipped_ids):
+                skipped_dict.pop(sid, None)
+                result.resurfaced.append(sid)
+            skipped_ids -= unscored_ids
 
     # Keep queue/skipped invariants healthy even if an old plan contains overlap.
     _prune_skipped_subjective_ids(order, skipped_ids=skipped_ids, pruned=result.pruned)
 
     # --- Cleanup: prune subjective IDs that are no longer unscored --------
     # Only prune IDs that are neither unscored nor stale (stale sync owns those).
-    _prune_subjective_ids(order, keep_ids=unscored_ids | stale_ids, pruned=result.pruned)
+    # Mid-cycle: prune ALL subjective IDs (keep_ids empty) since they
+    # shouldn't be in the queue mid-cycle at all.
+    if mid_cycle:
+        _prune_subjective_ids(order, keep_ids=set(), pruned=result.pruned)
+    else:
+        _prune_subjective_ids(order, keep_ids=unscored_ids | stale_ids, pruned=result.pruned)
 
     # --- Inject: append unscored IDs to back of queue ---------------------
-    _inject_subjective_ids(
-        order,
-        inject_ids=unscored_ids - skipped_ids,
-        injected=result.injected,
-    )
+    # Mid-cycle: don't inject — they'll surface at cycle end.
+    if not mid_cycle:
+        _inject_subjective_ids(
+            order,
+            inject_ids=unscored_ids - skipped_ids,
+            injected=result.injected,
+        )
 
     return result
 
@@ -218,12 +226,17 @@ def sync_stale_dimensions(
     objective_backlog = has_objective_backlog(state, policy)
 
     # --- Cleanup: prune resolved subjective IDs --------------------------
-    # Keep unscored IDs always. Keep stale/under-target only when objective
-    # backlog is clear, or when intentionally front-loading right after a
-    # completed cycle.
-    keep_ids = unscored_ids | injectable_ids
-    if objective_backlog and not cycle_just_completed:
-        keep_ids = unscored_ids
+    # Mid-cycle: don't keep unscored IDs — sync_unscored_dimensions owns
+    # those and prunes them mid-cycle.  Only keep stale/under-target when
+    # objective backlog is clear or just-completed.
+    # Non-mid-cycle: keep unscored IDs always (they belong in the queue).
+    mid_cycle = is_mid_cycle(plan)
+    if mid_cycle:
+        keep_ids = injectable_ids if not objective_backlog else set()
+    else:
+        keep_ids = unscored_ids | injectable_ids
+        if objective_backlog and not cycle_just_completed:
+            keep_ids = unscored_ids
     _prune_subjective_ids(order, keep_ids=keep_ids, pruned=result.pruned)
 
     # --- Inject stale + under-target dimensions --------------------------

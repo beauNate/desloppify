@@ -98,12 +98,15 @@ def test_queue_remaining_blocks_scan():
     ):
         mock_state_mod.load_state.return_value = {"issues": {}}
         scan_queue_preflight(args)
-    assert "objective" in str(exc_info.value)
+    assert "remaining in your queue" in str(exc_info.value)
 
 
-def test_queue_with_only_subjective_items_allows_scan():
-    """When queue contains only subjective items, gate passes — subjective
-    reviews don't block rescanning (the rescan reveals the updated score)."""
+def test_queue_with_only_subjective_items_blocks_scan():
+    """When queue contains only subjective items, scan is blocked.
+
+    Mid-cycle scans regenerate clusters and issue IDs, which wipes
+    triage state and reorders the queue.
+    """
     from desloppify.app.commands.helpers.queue_progress import QueueBreakdown
 
     args = SimpleNamespace(profile=None, force_rescan=False, state=None, lang="python")
@@ -124,15 +127,18 @@ def test_queue_with_only_subjective_items_allows_scan():
             "desloppify.app.commands.scan.preflight.plan_aware_queue_breakdown",
             return_value=breakdown,
         ),
+        pytest.raises(CommandError),
     ):
         mock_state_mod.load_state.return_value = {"issues": {}}
-        # Should NOT raise — subjective items don't block scanning
         scan_queue_preflight(args)
 
 
-def test_queue_with_only_workflow_items_allows_scan():
-    """When queue contains only workflow items (e.g. run-scan), gate passes
-    because score_display_mode sees no objective work."""
+def test_queue_with_only_workflow_items_blocks_scan():
+    """When queue contains only workflow items, scan is blocked.
+
+    Mid-cycle scans regenerate clusters and issue IDs, which wipes
+    triage state and reorders the queue.
+    """
     from desloppify.app.commands.helpers.queue_progress import QueueBreakdown
 
     args = SimpleNamespace(profile=None, force_rescan=False, state=None, lang="python")
@@ -153,9 +159,9 @@ def test_queue_with_only_workflow_items_allows_scan():
             "desloppify.app.commands.scan.preflight.plan_aware_queue_breakdown",
             return_value=breakdown,
         ),
+        pytest.raises(CommandError),
     ):
         mock_state_mod.load_state.return_value = {"issues": {}}
-        # Should NOT raise — workflow items don't block scanning
         scan_queue_preflight(args)
 
 
@@ -179,26 +185,15 @@ def test_force_rescan_with_wrong_attest_exits():
 
 
 def test_force_rescan_with_valid_attest_passes():
-    """--force-rescan with correct attestation bypasses the gate and clears plan scores."""
+    """--force-rescan with correct attestation bypasses the gate without modifying plan."""
     args = SimpleNamespace(
         profile=None,
         force_rescan=True,
         attest="I understand this is not the intended workflow",
     )
-    plan = {"plan_start_scores": {"strict": 80.0}}
-    with (
-        patch(
-            "desloppify.app.commands.scan.preflight.load_plan",
-            return_value=plan,
-        ),
-        patch(
-            "desloppify.app.commands.scan.preflight.save_plan",
-        ) as mock_save,
-    ):
-        scan_queue_preflight(args)
-        # Plan start scores should be cleared
-        assert plan["plan_start_scores"] == {}
-        mock_save.assert_called_once_with(plan)
+    # Preflight no longer clears plan_start_scores — mid-cycle detection
+    # is preserved so reconciliation can skip destructive steps.
+    scan_queue_preflight(args)
 
 
 def test_force_rescan_tolerates_missing_plan():

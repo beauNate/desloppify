@@ -86,3 +86,5 @@ def test_record_confirm_existing_completion_sets_confirmed_fields(monkeypatch) -
     assert organize["confirmed_at"] == "2026-03-08T00:00:00+00:00"
     assert organize["confirmed_text"] == "confirmed by reviewer"
     assert organize["report"].startswith("[confirmed-existing]")
+    assert organize["reused_existing_plan"] is True
+    assert organize["completion_note"] == "existing plan is still valid"

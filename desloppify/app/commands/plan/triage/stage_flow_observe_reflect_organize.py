@@ -99,6 +99,37 @@ def _cmd_stage_observe(
     valid_ids = set(si.open_issues.keys())
     cited = resolved_services.extract_issue_citations(report, valid_ids)
 
+    # --- Structured evidence validation ---
+    from ._stage_evidence_parsing import (
+        format_evidence_failures,
+        parse_observe_evidence,
+        validate_observe_evidence,
+    )
+
+    evidence = parse_observe_evidence(report, valid_ids)
+    evidence_failures = validate_observe_evidence(evidence, issue_count)
+    blocking = [f for f in evidence_failures if f.blocking]
+    advisory = [f for f in evidence_failures if not f.blocking]
+    if blocking:
+        msg = format_evidence_failures(blocking, stage_label="observe")
+        print(colorize(msg, "red"))
+        return
+    if advisory:
+        msg = format_evidence_failures(advisory, stage_label="observe")
+        print(colorize(msg, "yellow"))
+
+    # Convert parsed entries to assessment dicts for structured storage
+    assessments = [
+        {
+            "hash": entry.issue_hash,
+            "verdict": entry.verdict,
+            "verdict_reasoning": entry.verdict_reasoning,
+            "files_read": entry.files_read,
+            "recommendation": entry.recommendation,
+        }
+        for entry in evidence.entries
+    ]
+
     cleared = record_observe_stage(
         stages,
         report=report,
@@ -106,6 +137,7 @@ def _cmd_stage_observe(
         cited_ids=sorted(cited),
         existing_stage=existing_stage,
         is_reuse=is_reuse,
+        assessments=assessments,
     )
 
     resolved_services.save_plan(plan)
@@ -213,6 +245,19 @@ def _cmd_stage_reflect(
     if not accounting_ok:
         return
 
+    # --- Validate skip-reason evidence ---
+    from ._stage_evidence_parsing import (
+        format_evidence_failures,
+        validate_reflect_skip_evidence,
+    )
+
+    skip_failures = validate_reflect_skip_evidence(report)
+    blocking_skips = [f for f in skip_failures if f.blocking]
+    if blocking_skips:
+        msg = format_evidence_failures(blocking_skips, stage_label="reflect")
+        print(colorize(msg, "red"))
+        return
+
     stages = meta.setdefault("triage_stages", {})
     reflect_stage = {
         "stage": "reflect",
@@ -317,18 +362,46 @@ def _cmd_stage_organize(
             activity.get(k, 0)
             for k in ("cluster_create", "cluster_add", "cluster_update", "cluster_remove")
         )
-        if cluster_ops == 0:
-            print(colorize("  Warning: no cluster operations logged since reflect.", "yellow"))
-            print(colorize("  Did you create clusters, add issues, and enrich them?", "yellow"))
-            print(colorize("  The organize stage should reflect real work — not just recording a report.", "dim"))
-            print()
-        elif cluster_ops < 3:
-            print(colorize(f"  Note: only {cluster_ops} cluster operation(s) logged since reflect.", "yellow"))
-            print(colorize("  Make sure all clusters are properly set up before proceeding.", "dim"))
-            print()
+        cluster_count = len(manual_clusters)
+        min_ops = max(3, cluster_count)
+        if cluster_ops < min_ops:
+            if attestation and len(attestation.strip()) >= 40:
+                print(colorize(
+                    f"  Note: only {cluster_ops} cluster op(s) logged (expected {min_ops}+). "
+                    "Proceeding with attestation override.",
+                    "yellow",
+                ))
+            else:
+                print(colorize(
+                    f"  Cannot organize: only {cluster_ops} cluster operation(s) logged "
+                    f"since reflect (need {min_ops}+).",
+                    "red",
+                ))
+                print(colorize(
+                    "  Cluster operations (create/add/update/remove) are logged automatically\n"
+                    "  when you use the CLI. Did you create clusters, add issues, and enrich them?",
+                    "dim",
+                ))
+                print(colorize(
+                    '  Override: pass --attestation "reason why fewer ops are expected" (40+ chars).',
+                    "dim",
+                ))
+                return
 
     report = _organize_report_or_error(report)
     if report is None:
+        return
+
+    # --- Report must mention at least one cluster name ---
+    from ._stage_evidence_parsing import (
+        format_evidence_failures,
+        validate_report_references_clusters,
+    )
+
+    cluster_ref_failures = validate_report_references_clusters(report, manual_clusters)
+    if cluster_ref_failures:
+        msg = format_evidence_failures(cluster_ref_failures, stage_label="organize")
+        print(colorize(msg, "red"))
         return
 
     stages = meta.setdefault("triage_stages", {})

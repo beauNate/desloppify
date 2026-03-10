@@ -20,7 +20,7 @@ def run_claude_orchestrator(
     resolved_services = services or default_triage_services()
     _repo_root = get_project_root()
     plan = resolved_services.load_plan()
-    ensure_triage_started(plan, resolved_services)
+    ensure_triage_started(plan, resolved_services, runner="claude")
 
     print(colorize("\n  Claude triage orchestrator mode.", "bold"))
     print(colorize("  " + "─" * 60, "dim"))

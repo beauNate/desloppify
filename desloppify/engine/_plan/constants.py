@@ -1,8 +1,9 @@
-"""Shared constants for plan internals."""
+"""Shared constants and helpers for plan internals."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 AUTO_PREFIX = "auto/"
 
@@ -42,9 +43,39 @@ class QueueSyncResult:
         return len(self.injected) + len(self.pruned) + len(self.resurfaced)
 
 
+def _resolve_triage_stages(meta_or_stages: dict[str, Any] | None) -> dict[str, Any]:
+    """Extract the triage stages dict from meta or a raw stages dict."""
+    if not isinstance(meta_or_stages, dict):
+        return {}
+    if "triage_stages" in meta_or_stages:
+        raw = meta_or_stages.get("triage_stages")
+        return raw if isinstance(raw, dict) else {}
+    return meta_or_stages
+
+
+def confirmed_triage_stage_names(meta_or_stages: dict[str, Any] | None) -> set[str]:
+    """Return triage stage names with an explicit ``confirmed_at`` marker."""
+    return {
+        str(name)
+        for name, payload in _resolve_triage_stages(meta_or_stages).items()
+        if isinstance(payload, dict) and payload.get("confirmed_at")
+    }
+
+
+def recorded_unconfirmed_triage_stage_names(meta_or_stages: dict[str, Any] | None) -> set[str]:
+    """Return recorded triage stage names that still need confirmation."""
+    return {
+        str(name)
+        for name, payload in _resolve_triage_stages(meta_or_stages).items()
+        if isinstance(payload, dict) and payload and not payload.get("confirmed_at")
+    }
+
+
 __all__ = [
     "AUTO_PREFIX",
     "QueueSyncResult",
+    "confirmed_triage_stage_names",
+    "recorded_unconfirmed_triage_stage_names",
     "SUBJECTIVE_PREFIX",
     "SYNTHETIC_PREFIXES",
     "TRIAGE_IDS",

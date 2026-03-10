@@ -22,6 +22,46 @@ from .services import TriageServices, default_triage_services
 _STAGE_ORDER = ["observe", "reflect", "organize", "enrich", "sense-check"]
 
 
+def _normalize_summary_text(text: str | None) -> str:
+    """Collapse user-facing summary text to a single readable line."""
+    return " ".join(str(text or "").split()).strip()
+
+
+def _truncate_summary_text(text: str, limit: int = 360) -> str:
+    """Trim long strategy summaries so completion output stays readable."""
+    if len(text) <= limit:
+        return text
+    return text[: limit - 3].rstrip() + "..."
+
+
+def _effective_completion_strategy_summary(
+    *,
+    completion_mode: str,
+    strategy: str,
+    existing_strategy: str,
+    completion_note: str,
+) -> str:
+    """Return the strategy summary that should be stored after completion.
+
+    All text arguments should already be normalised via ``_normalize_summary_text``.
+    """
+    if strategy.lower() != "same":
+        return strategy
+
+    if completion_mode == "confirm_existing":
+        summary = (
+            "Reused the existing enriched cluster plan after re-review instead "
+            "of materializing a new reflect blueprint."
+        )
+        if completion_note:
+            summary += f" Reason: {completion_note}"
+        elif existing_strategy:
+            summary += " Prior execution sequencing remains in force."
+        return _truncate_summary_text(summary)
+
+    return existing_strategy
+
+
 def has_triage_in_queue(plan: dict) -> bool:
     """Check if any triage stage ID is in the queue."""
     order = set(plan.get("queue_order", []))
@@ -174,6 +214,8 @@ def apply_completion(
     strategy: str,
     *,
     services: TriageServices | None = None,
+    completion_mode: str = "manual_triage",
+    completion_note: str = "",
 ) -> None:
     """Shared completion logic: update meta, remove triage stage IDs, save."""
     resolved_services = services or default_triage_services()
@@ -194,21 +236,43 @@ def apply_completion(
     current_hash = review_issue_snapshot_hash(state)
 
     meta = plan.setdefault("epic_triage_meta", {})
+    normalized_strategy = _normalize_summary_text(strategy)
+    existing_strategy = _normalize_summary_text(meta.get("strategy_summary", ""))
+    normalized_note = _normalize_summary_text(completion_note)
+    effective_strategy_summary = _effective_completion_strategy_summary(
+        completion_mode=completion_mode,
+        strategy=normalized_strategy,
+        existing_strategy=existing_strategy,
+        completion_note=normalized_note,
+    )
     meta["issue_snapshot_hash"] = current_hash
     open_ids = sorted(open_review_ids(state))
     meta["triaged_ids"] = open_ids
-    if strategy.strip().lower() != "same":
-        meta["strategy_summary"] = strategy
-    meta["trigger"] = "manual_triage"
+    if effective_strategy_summary:
+        meta["strategy_summary"] = effective_strategy_summary
+    meta["trigger"] = "confirm_existing" if completion_mode == "confirm_existing" else "manual_triage"
+    meta["last_completion_mode"] = completion_mode
+    if normalized_note:
+        meta["last_completion_note"] = normalized_note
+    else:
+        meta.pop("last_completion_note", None)
     meta["last_completed_at"] = utc_now()
     # Archive stages before clearing so previous analysis is preserved
     stages = meta.get("triage_stages", {})
     if stages:
-        meta["last_triage"] = {
+        last_triage = {
             "completed_at": utc_now(),
             "stages": {k: dict(v) for k, v in stages.items()},
-            "strategy": strategy if strategy.strip().lower() != "same" else meta.get("strategy_summary", ""),
+            "strategy": effective_strategy_summary,
+            "completion_mode": completion_mode,
         }
+        if completion_mode == "confirm_existing":
+            last_triage["reused_existing_plan"] = True
+            if normalized_note:
+                last_triage["completion_note"] = normalized_note
+            if existing_strategy and existing_strategy != effective_strategy_summary:
+                last_triage["previous_strategy_summary"] = existing_strategy
+        meta["last_triage"] = last_triage
     meta["triage_stages"] = {}  # clear stages on completion
     meta.pop("triage_recommended", None)
     meta.pop("stage_refresh_required", None)
@@ -218,9 +282,16 @@ def apply_completion(
 
     cluster_count = len([c for c in clusters.values() if c.get("issue_ids")])
     print(colorize(f"  Triage complete: {organized}/{total} issues in {cluster_count} cluster(s).", "green"))
-    effective_strategy = strategy if strategy.strip().lower() != "same" else meta.get("strategy_summary", "")
-    if effective_strategy:
-        print(colorize(f"  Strategy: {effective_strategy}", "cyan"))
+    if completion_mode == "confirm_existing":
+        print(
+            colorize(
+                "  Completion mode: reused the current enriched cluster plan; "
+                "did not materialize a new reflect blueprint.",
+                "cyan",
+            )
+        )
+    if effective_strategy_summary:
+        print(colorize(f"  Strategy: {effective_strategy_summary}", "cyan"))
     print(colorize("  Run `desloppify next` to start implementation.", "green"))
 
 def find_cluster_for(fid: str, clusters: dict) -> str | None:

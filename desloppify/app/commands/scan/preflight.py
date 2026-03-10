@@ -13,9 +13,8 @@ from desloppify.app.commands.helpers.queue_progress import (
 from desloppify.app.commands.helpers.queue_progress import get_plan_start_strict
 from desloppify.app.commands.helpers.state import state_path
 from desloppify.base.exception_sets import PLAN_LOAD_EXCEPTIONS, CommandError
-from desloppify.base.output.fallbacks import log_best_effort_failure
 from desloppify.base.output.terminal import colorize
-from desloppify.engine.plan import load_plan, save_plan
+from desloppify.engine.plan import load_plan
 
 _logger = logging.getLogger(__name__)
 
@@ -38,18 +37,10 @@ def scan_queue_preflight(args: object) -> None:
         print(
             colorize(
                 "  --force-rescan: bypassing queue completion check. "
-                "Plan-start score will be reset.",
+                "Queue-destructive reconciliation steps will be skipped.",
                 "yellow",
             )
         )
-        # Clear plan_start_scores
-        try:
-            plan = load_plan()
-            if plan.get("plan_start_scores"):
-                plan["plan_start_scores"] = {}
-                save_plan(plan)
-        except PLAN_LOAD_EXCEPTIONS as exc:
-            log_best_effort_failure(_logger, "clear plan_start_scores before force-rescan", exc)
         return
 
     # No plan = no gate (first scan, or user never uses plan)
@@ -61,9 +52,10 @@ def scan_queue_preflight(args: object) -> None:
     if not plan.get("plan_start_scores"):
         return  # No active cycle
 
-    # Count plan-aware remaining items.  Only gate on objective work —
-    # subjective reviews don't block rescanning (the rescan is what
-    # reveals the updated score after reviews are done).
+    # Count plan-aware remaining items.  Block scan when ANY queue items
+    # remain (objective OR subjective).  Mid-cycle scans regenerate issue
+    # IDs which wipes triage state and re-clusters the queue, undoing
+    # prioritisation work.
     try:
         state = state_mod.load_state(state_path(args))
         breakdown = plan_aware_queue_breakdown(state, plan)
@@ -72,15 +64,16 @@ def scan_queue_preflight(args: object) -> None:
     except PLAN_LOAD_EXCEPTIONS:
         _logger.debug("scan preflight queue breakdown skipped", exc_info=True)
         return
-    if mode is not ScoreDisplayMode.FROZEN:
-        return  # No objective work remains, scan allowed
+    if mode is ScoreDisplayMode.LIVE:
+        return  # Queue fully clear or no active cycle — scan allowed
 
-    remaining = breakdown.objective_actionable
-    # GATE
+    remaining = breakdown.queue_total
+    # GATE — block both FROZEN (objective work) and PHASE_TRANSITION
+    # (subjective/workflow items remain)
     raise CommandError(
-        f"{remaining} objective item{'s' if remaining != 1 else ''}"
+        f"{remaining} item{'s' if remaining != 1 else ''}"
         " remaining in your queue.\n"
-        "  The intended workflow is to complete the queue before scanning.\n"
+        "  Scanning mid-cycle regenerates issue IDs and breaks triage state.\n"
         "  Work through items with `desloppify next`, then scan when clear.\n\n"
         "  To force a rescan (resets your plan-start score):\n"
         '    desloppify scan --force-rescan --attest "I understand this is not '

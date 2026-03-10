@@ -9,12 +9,12 @@ def _observe_instructions(mode: PromptMode = "self_record") -> str:
     tail = """\
 When done, run:
 ```
-desloppify plan triage --stage observe --report "<your analysis with [hash] citations>"
+desloppify plan triage --stage observe --report "<your analysis with structured assessments>"
 ```
 """
     if mode == "output_only":
         tail = """\
-When done, write a plain-text observe report with [hash] citations and specific evidence.
+When done, write a plain-text observe report with structured assessments per issue.
 The orchestrator records and confirms the stage.
 """
     return f"""\
@@ -51,21 +51,45 @@ Example subagent split for 90 issues across 17 dimensions:
 - Subagent 4: migrations + debt + conventions (incomplete_migration, ai_generated_debt, convention_outlier, naming_quality)
 - Subagent 5: type safety + errors + tests (type_safety, error_consistency, test_strategy, initialization_coupling, dependency_health)
 
-**What a GOOD observe report looks like:**
-- "[34580232] taskType is plain string — FALSE POSITIVE. Uses branded string union KnownTaskType
-  with ~25 literals in src/types/database.ts line 50. The issue describes code that doesn't exist."
-- "[b634fc71] useGenerationsPaneController returns 60+ values — GENUINE. Confirmed 65 properties
-  at lines 217-282. Mixes pane lifecycle, filters, gallery data, interaction, and navigation."
+### Structured Assessment Template
+
+**Your report MUST include a structured assessment for EVERY issue.** Copy and fill out this
+template for each issue:
+
+```
+- hash: <issue hash>
+  verdict: genuine | false-positive | exaggerated | over-engineering
+  verdict_reasoning: <why this verdict — what you found when you read the code>
+  files_read: [<file paths the agent looked at>]
+  recommendation: <what to do about this issue>
+```
+
+**Example:**
+```
+- hash: 34580232
+  verdict: false-positive
+  verdict_reasoning: Uses branded string union KnownTaskType with ~25 literals in src/types/database.ts line 50. The issue describes code that doesn't exist.
+  files_read: [src/types/database.ts]
+  recommendation: No action needed — issue is inaccurate
+
+- hash: b634fc71
+  verdict: genuine
+  verdict_reasoning: Confirmed 65 properties at lines 217-282. Mixes pane lifecycle, filters, gallery data, interaction, and navigation.
+  files_read: [src/shared/components/GenerationsPane/hooks/useGenerationsPaneController.ts]
+  recommendation: Decompose into focused sub-hooks
+```
+
+**Validation checks (all blocking):**
+- Every entry must have a recognized `verdict` keyword
+- Every entry must have non-empty `verdict_reasoning`
+- Every entry must have non-empty `files_read` list
+- Every entry must have non-empty `recommendation`
 
 **What a LAZY observe report looks like (will be rejected):**
 - "There are several convention issues that should be addressed"
 - "The type safety dimension has some genuine concerns"
 - Listing issue titles without any verification or independent analysis
-
-**Your report must include for EVERY issue:**
-1. The hash prefix
-2. Your verdict (genuine / false positive / exaggerated / over-engineering)
-3. The specific evidence (what you found when you read the code)
+- Template fields left empty or with placeholder text
 
 {tail}
 """
@@ -164,7 +188,7 @@ def _organize_instructions(mode: PromptMode = "self_record") -> str:
    per-issue justification — not "low priority" but "false positive: the code at line 47
    already uses named constants, contradicting the issue's claim":
    ```
-   desloppify plan skip --permanent <pattern> --note "<specific per-issue reason>" --attest "<attestation>"
+   desloppify plan skip --permanent <pattern> --note "<specific per-issue reason>" --attest "I have reviewed this triage skip against the code and I am not gaming the score by suppressing a real defect."
    ```
 3. Create clusters as specified in the blueprint:
    `desloppify plan cluster create <name> --description "..."`

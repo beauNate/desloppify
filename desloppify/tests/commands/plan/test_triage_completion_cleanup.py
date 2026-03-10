@@ -168,3 +168,36 @@ class TestApplyCompletionClearsTriageState:
         assert "completed_at" in last
         assert "stages" in last
         assert "observe" in last["stages"]
+
+    def test_confirm_existing_rewrites_strategy_summary_to_explicit_reuse_message(self, capsys):
+        """Confirm-existing completion should not leave the stale prior strategy summary in place."""
+        state = _state_with_review_issues("r1")
+        plan = _plan_with_triage_and_workflow("r1")
+        plan["epic_triage_meta"]["strategy_summary"] = "Legacy sequencing summary from an older triage run."
+        services = _make_services(state)
+        args = argparse.Namespace()
+
+        apply_completion(
+            args,
+            plan,
+            "same",
+            services=services,
+            completion_mode="confirm_existing",
+            completion_note="Existing enriched manual clusters still cover [r1].",
+        )
+
+        meta = plan["epic_triage_meta"]
+        assert meta["trigger"] == "confirm_existing"
+        assert meta["last_completion_mode"] == "confirm_existing"
+        assert meta["last_completion_note"] == "Existing enriched manual clusters still cover [r1]."
+        assert meta["strategy_summary"].startswith(
+            "Reused the existing enriched cluster plan after re-review"
+        )
+        assert "did not materialize" in capsys.readouterr().out
+
+        last = meta["last_triage"]
+        assert last["completion_mode"] == "confirm_existing"
+        assert last["reused_existing_plan"] is True
+        assert last["completion_note"] == "Existing enriched manual clusters still cover [r1]."
+        assert last["previous_strategy_summary"] == "Legacy sequencing summary from an older triage run."
+        assert last["strategy"] == meta["strategy_summary"]

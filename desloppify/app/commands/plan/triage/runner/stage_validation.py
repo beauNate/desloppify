@@ -7,17 +7,25 @@ from pathlib import Path
 
 from desloppify.engine.plan import TriageInput
 
+from .._stage_evidence_parsing import (
+    parse_observe_evidence,
+    validate_observe_evidence,
+    validate_reflect_skip_evidence,
+    validate_report_has_file_paths,
+    validate_report_references_clusters,
+)
 from .._stage_validation import (
     _cluster_file_overlaps,
     _clusters_with_directory_scatter,
     _clusters_with_high_step_ratio,
     _steps_missing_issue_refs,
+    _steps_referencing_skipped_issues,
     _steps_with_bad_paths,
     _steps_with_vague_detail,
     _steps_without_effort,
     _underspecified_steps,
 )
-from ..helpers import manual_clusters_with_issues, observe_dimension_breakdown
+from ..helpers import count_log_activity_since, manual_clusters_with_issues, observe_dimension_breakdown
 from ..stage_helpers import unclustered_review_issues, unenriched_clusters
 
 
@@ -98,6 +106,20 @@ def run_enrich_quality_checks(
             EnrichQualityFailure(code="vague_detail", message=message)
         )
 
+    # Steps referencing skipped/wontfixed issues
+    stale_refs = _steps_referencing_skipped_issues(plan)
+    if stale_refs:
+        total_stale = sum(len(refs) for _, _, refs in stale_refs)
+        failures.append(
+            EnrichQualityFailure(
+                code="stale_issue_refs",
+                message=(
+                    f"{total_stale} step issue_ref(s) point to skipped/wontfixed issues"
+                    f"{sense_suffix}. Remove stale refs."
+                ),
+            )
+        )
+
     return failures
 
 
@@ -130,6 +152,15 @@ def validate_stage(
                     f"(need {min_citations}+). Reference specific issue "
                     f"hashes to prove you read them."
                 )
+            # Structured evidence validation
+            valid_ids: set[str] = set()
+            if triage_input:
+                valid_ids = set(triage_input.open_issues.keys())
+            evidence = parse_observe_evidence(report, valid_ids)
+            ev_failures = validate_observe_evidence(evidence, issue_count)
+            blocking = [f for f in ev_failures if f.blocking]
+            if blocking:
+                return False, blocking[0].message
         return True, ""
 
     if stage == "reflect":
@@ -151,6 +182,11 @@ def validate_stage(
                 f"Reflect report cites only {len(cited)}/{issue_count} issue(s). "
                 "A reflect blueprint must account for every open review issue."
             )
+        # Validate skip-reason evidence
+        skip_failures = validate_reflect_skip_evidence(report)
+        blocking_skips = [f for f in skip_failures if f.blocking]
+        if blocking_skips:
+            return False, blocking_skips[0].message
         return True, ""
 
     if stage == "organize":
@@ -166,6 +202,27 @@ def validate_stage(
         unclustered = unclustered_review_issues(plan, state)
         if unclustered:
             return False, f"{len(unclustered)} review issue(s) not in any cluster."
+        # Cluster-name mention check
+        report = stages["organize"].get("report", "")
+        cluster_ref_failures = validate_report_references_clusters(report, manual)
+        if cluster_ref_failures:
+            blocking_refs = [f for f in cluster_ref_failures if f.blocking]
+            if blocking_refs:
+                return False, blocking_refs[0].message
+        # Cluster operation count check
+        reflect_ts = stages.get("reflect", {}).get("timestamp", "")
+        if reflect_ts:
+            activity = count_log_activity_since(plan, reflect_ts)
+            cluster_ops = sum(
+                activity.get(k, 0)
+                for k in ("cluster_create", "cluster_add", "cluster_update", "cluster_remove")
+            )
+            min_ops = max(3, len(manual))
+            if cluster_ops < min_ops:
+                return False, (
+                    f"Only {cluster_ops} cluster op(s) logged since reflect "
+                    f"(need {min_ops}+). Run cluster create/add/update commands."
+                )
         # Advisory warnings (non-blocking but informational)
         warnings: list[str] = []
         overlaps = _cluster_file_overlaps(plan)
@@ -213,6 +270,18 @@ def validate_stage(
         )
         if failures:
             return False, failures[0].message
+        # Sense-check evidence: file paths + cluster names
+        path_failures = validate_report_has_file_paths(report)
+        if path_failures:
+            blocking_pf = [f for f in path_failures if f.blocking]
+            if blocking_pf:
+                return False, blocking_pf[0].message
+        sc_clusters = manual_clusters_with_issues(plan)
+        cluster_failures = validate_report_references_clusters(report, sc_clusters)
+        if cluster_failures:
+            blocking_cf = [f for f in cluster_failures if f.blocking]
+            if blocking_cf:
+                return False, blocking_cf[0].message
         return True, ""
 
     return False, f"Unknown stage: {stage}"

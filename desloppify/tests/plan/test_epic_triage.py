@@ -192,7 +192,13 @@ class TestSyncTriageNeeded:
         """Stages already confirmed in meta are not injected."""
         plan = empty_plan()
         plan["epic_triage_meta"] = {
-            "triage_stages": {"observe": {"report": "analysis..."}},
+            "issue_snapshot_hash": "older_hash",
+            "triage_stages": {
+                "observe": {
+                    "report": "analysis...",
+                    "confirmed_at": "2026-01-01T00:00:00Z",
+                }
+            },
         }
         state = _state_with_review_issues("r1")
         sync_triage_needed(plan, state)
@@ -205,7 +211,13 @@ class TestSyncTriageNeeded:
         """Injected triage stages are removed from skipped to keep plan valid."""
         plan = empty_plan()
         plan["epic_triage_meta"] = {
-            "triage_stages": {"observe": {"report": "analysis..."}},
+            "issue_snapshot_hash": "older_hash",
+            "triage_stages": {
+                "observe": {
+                    "report": "analysis...",
+                    "confirmed_at": "2026-01-01T00:00:00Z",
+                }
+            },
         }
         plan["skipped"] = {
             "triage::reflect": {"kind": "temporary"},
@@ -436,13 +448,44 @@ class TestBuildTriageStageItems:
         plan = empty_plan()
         plan["queue_order"] = list(TRIAGE_STAGE_IDS)
         plan["epic_triage_meta"] = {
-            "triage_stages": {"observe": {"report": "done"}},
+            "triage_stages": {
+                "observe": {
+                    "report": "done",
+                    "confirmed_at": "2026-01-01T00:00:00Z",
+                }
+            },
         }
         state = _state_with_review_issues("r1")
         items = build_triage_stage_items(plan, state)
         ids = [it["id"] for it in items]
         assert "triage::observe" not in ids
         assert "triage::reflect" in ids
+
+    def test_unconfirmed_recorded_stage_remains_pending(self):
+        plan = empty_plan()
+        plan["queue_order"] = list(TRIAGE_STAGE_IDS)
+        plan["epic_triage_meta"] = {
+            "triage_stages": {"observe": {"report": "done"}},
+        }
+        state = _state_with_review_issues("r1")
+        items = build_triage_stage_items(plan, state)
+        ids = [it["id"] for it in items]
+        assert "triage::observe" in ids
+        reflect = next(it for it in items if it["id"] == "triage::reflect")
+        assert reflect["blocked_by"] == ["triage::observe"]
+
+    def test_missing_queue_id_for_unconfirmed_stage_is_still_rendered(self):
+        plan = empty_plan()
+        plan["queue_order"] = ["triage::enrich", "triage::sense-check", "triage::commit"]
+        plan["epic_triage_meta"] = {
+            "triage_stages": {"organize": {"report": "cluster plan"}},
+        }
+        state = _state_with_review_issues("r1")
+        items = build_triage_stage_items(plan, state)
+        ids = [it["id"] for it in items]
+        assert ids == ["triage::organize", "triage::enrich", "triage::sense-check", "triage::commit"]
+        enrich = next(it for it in items if it["id"] == "triage::enrich")
+        assert enrich["blocked_by"] == ["triage::organize"]
 
 
 # ---------------------------------------------------------------------------
@@ -704,4 +747,3 @@ class TestApplyTriageToPlan:
 # ---------------------------------------------------------------------------
 # Reconciliation tests
 # ---------------------------------------------------------------------------
-

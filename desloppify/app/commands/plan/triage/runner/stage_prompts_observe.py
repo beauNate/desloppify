@@ -41,19 +41,32 @@ Do NOT analyze themes, strategy, or relationships between issues. Just verify: i
 - Listing issue titles without any verification or independent analysis
 
 **Your report must include for EVERY issue ({issue_count} total):**
-1. The hash prefix in brackets
+1. The issue hash
 2. Your verdict (genuine / false positive / exaggerated / over-engineering)
-3. The specific evidence (what you found when you read the code)
+3. Your verdict reasoning (what you found when you read the code)
+4. The file paths you actually read
+5. Your recommendation
 
 ## IMPORTANT: Output Rules
 
 **Do NOT run any `desloppify` commands.** Do NOT run `desloppify plan triage --stage observe`.
 You are a parallel batch — the orchestrator will merge all batch outputs and record the stage.
 
-**Write your analysis as plain text only.** Format:
+**Write your analysis as plain text only.**
+**Do NOT use the old one-line `[hash] VERDICT — evidence` format.**
+Use this structured template for EVERY issue:
 ```
-[hash_prefix] VERDICT — evidence
+- hash: <issue hash>
+  verdict: genuine | false-positive | exaggerated | over-engineering
+  verdict_reasoning: <what you verified in the code and why that leads to this verdict>
+  files_read: [<file paths you opened>]
+  recommendation: <what to do next>
 ```
+
+Before finishing, do a self-check:
+- Every issue in the batch has one entry
+- Every entry has a non-empty `files_read` list
+- Every entry has a concrete `recommendation`
 """
 
 

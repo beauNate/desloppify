@@ -61,7 +61,10 @@ def test_reconcile_review_import_sync_result(monkeypatch) -> None:
     monkeypatch.setattr(
         reconcile_import_mod,
         "sync_triage_needed",
-        lambda _p, _s, policy=None: SimpleNamespace(injected=True),
+        lambda _p, _s, policy=None: SimpleNamespace(
+            injected=["triage::observe", "triage::reflect"],
+            deferred=False,
+        ),
     )
 
     result = reconcile_import_mod.sync_plan_after_review_import(plan, state, policy=None)
@@ -69,6 +72,8 @@ def test_reconcile_review_import_sync_result(monkeypatch) -> None:
     assert result.new_ids == {"id2", "id3"}
     assert result.added_to_queue == ["id2", "id3"]
     assert result.triage_injected is True
+    assert result.triage_injected_ids == ["triage::observe", "triage::reflect"]
+    assert result.triage_deferred is False
     assert plan["queue_order"] == ["id1", "id2", "id3"]
 
 
