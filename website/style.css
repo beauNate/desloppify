@@ -135,12 +135,14 @@ section h2::after {
 /* ─── HERO ─── */
 #hero {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
   text-align: center;
   position: relative;
-  padding-top: 6rem;
+  padding-top: 4rem;
+  padding-bottom: 2rem;
 }
 
 #hero-canvas {
@@ -156,6 +158,14 @@ section h2::after {
   position: relative;
   z-index: 1;
   max-width: 700px;
+}
+
+.hero-mascot {
+  display: block;
+  width: 160px;
+  height: 160px;
+  object-fit: contain;
+  margin: 0 auto -0.5rem;
 }
 
 #hero h1 {
@@ -246,6 +256,14 @@ section h2::after {
 }
 
 /* ─── HOW IT WORKS ─── */
+.how-desc {
+  font-size: 1.05rem;
+  color: var(--ink-soft);
+  line-height: 1.7;
+  max-width: 750px;
+  margin-bottom: 1.5rem;
+}
+
 .how-image-wrap {
   background: var(--card-bg);
   padding: 1.5rem;
@@ -465,6 +483,7 @@ footer {
 
   #hero h1 { font-size: 3.2rem; }
   .tagline { font-size: 1.4rem; }
+  .hero-mascot { width: 120px; height: 120px; }
 
   .nav-links { gap: 0.8rem; font-size: 0.85rem; }
 

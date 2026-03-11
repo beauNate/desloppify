@@ -27,6 +27,7 @@
   <!-- ─── HERO ─── -->
   <section id="hero">
     <div class="hero-content">
+      <img src="mascot-no-bg.png" alt="Desloppify mascot — a funnel filtering messy code" class="hero-mascot">
       <h1>desloppify</h1>
       <p class="tagline">an agent harness to make your codebase <span class="chef-kiss">beautiful</span></p>
       <p class="subtitle">
@@ -37,7 +38,7 @@
       </p>
       <div class="hero-actions">
         <a href="#how-it-works" class="btn btn-primary">See how it works</a>
-        <button id="copy-instructions" class="btn btn-secondary" onclick="copyAgentInstructions()">Copy to clipboard</button>
+        <button id="copy-instructions" class="btn btn-secondary" onclick="copyAgentInstructions()">Copy agent instructions</button>
       </div>
       <div class="hero-badges">
         <img src="https://img.shields.io/pypi/v/desloppify" alt="PyPI version">
@@ -51,6 +52,14 @@
   <!-- ─── HOW IT WORKS ─── -->
   <section id="how-it-works">
     <h2>How it works</h2>
+    <p class="how-desc">
+      Desloppify combines mechanical detection (dead code, duplication, complexity) with
+      subjective LLM review (naming, abstractions, module boundaries). It scans your codebase,
+      builds a prioritized plan, then works through a fix loop — one issue at a time. State
+      persists across sessions so it chips away over multiple runs, and the scoring is designed
+      to resist gaming. A score above 98 should correlate with a codebase a seasoned engineer
+      would call beautiful.
+    </p>
     <div class="how-image-wrap" data-rough>
       <img src="explained.png" alt="Desloppify flow: scan, detect, plan, fix loop" class="how-image">
     </div>
