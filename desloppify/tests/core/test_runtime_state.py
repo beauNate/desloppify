@@ -54,6 +54,24 @@ def test_source_file_cache_is_scoped():
     )
 
 
+def test_treesitter_parse_cache_is_scoped():
+    from desloppify.languages._framework.treesitter.imports.cache import (
+        current_parse_tree_cache,
+    )
+
+    global_cache = current_parse_tree_cache()
+    global_cache.enable()
+    global_cache._trees[("global.py", "python")] = (b"src", object())
+
+    with runtime_state.runtime_scope(runtime_state.make_runtime_context()):
+        scoped_cache = current_parse_tree_cache()
+        assert scoped_cache is not global_cache
+        assert scoped_cache._trees == {}
+
+    assert current_parse_tree_cache() is global_cache
+    global_cache.disable()
+
+
 def test_file_text_cache_read_result_success(tmp_path):
     file_path = tmp_path / "ok.py"
     file_path.write_text("print('ok')\n")

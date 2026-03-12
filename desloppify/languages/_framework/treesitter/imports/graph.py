@@ -7,7 +7,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from .cache import _PARSE_CACHE
+from .cache import get_or_parse_tree
 from ..analysis.extractors import _get_parser, _make_query, _run_query, _unwrap_node
 
 if TYPE_CHECKING:
@@ -39,7 +39,7 @@ def ts_build_dep_graph(
         graph[f] = {"imports": set(), "importers": set()}
 
     for filepath in file_list:
-        cached = _PARSE_CACHE.get_or_parse(filepath, parser, spec.grammar)
+        cached = get_or_parse_tree(filepath, parser, spec.grammar)
         if cached is None:
             continue
         _source, tree = cached

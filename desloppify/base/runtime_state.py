@@ -95,6 +95,7 @@ class RuntimeContext:
     query_file: Path | None = None
     file_text_cache: FileTextCache = field(default_factory=FileTextCache)
     cache_enabled: bool = False
+    treesitter_parse_cache: object | None = None
     source_file_cache: SourceFileCache = field(
         default_factory=lambda: SourceFileCache(max_entries=16)
     )

@@ -770,53 +770,62 @@ class TestSpecValidation:
 
 class TestParseTreeCache:
     def test_cache_hit(self, go_file, tmp_path):
+        from desloppify.base.runtime_state import make_runtime_context, runtime_scope
         from desloppify.languages._framework.treesitter.imports.cache import (
-            _PARSE_CACHE,
+            current_parse_tree_cache,
             disable_parse_cache,
             enable_parse_cache,
         )
         from desloppify.languages._framework.treesitter._extractors import _get_parser
 
         parser, _language = _get_parser("go")
-        enable_parse_cache()
-        try:
-            result1 = _PARSE_CACHE.get_or_parse(go_file, parser, "go")
-            result2 = _PARSE_CACHE.get_or_parse(go_file, parser, "go")
-            assert result1 is not None
-            assert result2 is not None
-            # Same tree object (cached).
-            assert result1[1] is result2[1]
-        finally:
-            disable_parse_cache()
+        with runtime_scope(make_runtime_context()):
+            enable_parse_cache()
+            try:
+                cache = current_parse_tree_cache()
+                result1 = cache.get_or_parse(go_file, parser, "go")
+                result2 = cache.get_or_parse(go_file, parser, "go")
+                assert result1 is not None
+                assert result2 is not None
+                # Same tree object (cached).
+                assert result1[1] is result2[1]
+            finally:
+                disable_parse_cache()
 
     def test_cache_disabled(self, go_file, tmp_path):
+        from desloppify.base.runtime_state import make_runtime_context, runtime_scope
         from desloppify.languages._framework.treesitter.imports.cache import (
-            _PARSE_CACHE,
+            current_parse_tree_cache,
             disable_parse_cache,
         )
         from desloppify.languages._framework.treesitter._extractors import _get_parser
 
-        disable_parse_cache()
-        parser, _language = _get_parser("go")
-        result1 = _PARSE_CACHE.get_or_parse(go_file, parser, "go")
-        result2 = _PARSE_CACHE.get_or_parse(go_file, parser, "go")
-        assert result1 is not None
-        assert result2 is not None
-        # Different tree objects (not cached).
-        assert result1[1] is not result2[1]
+        with runtime_scope(make_runtime_context()):
+            disable_parse_cache()
+            parser, _language = _get_parser("go")
+            cache = current_parse_tree_cache()
+            result1 = cache.get_or_parse(go_file, parser, "go")
+            result2 = cache.get_or_parse(go_file, parser, "go")
+            assert result1 is not None
+            assert result2 is not None
+            # Different tree objects (not cached).
+            assert result1[1] is not result2[1]
 
     def test_cache_cleanup(self):
+        from desloppify.base.runtime_state import make_runtime_context, runtime_scope
         from desloppify.languages._framework.treesitter.imports.cache import (
-            _PARSE_CACHE,
+            current_parse_tree_cache,
             disable_parse_cache,
             enable_parse_cache,
         )
 
-        enable_parse_cache()
-        assert _PARSE_CACHE._enabled
-        disable_parse_cache()
-        assert not _PARSE_CACHE._enabled
-        assert _PARSE_CACHE._trees == {}
+        with runtime_scope(make_runtime_context()):
+            enable_parse_cache()
+            cache = current_parse_tree_cache()
+            assert cache._enabled
+            disable_parse_cache()
+            assert not cache._enabled
+            assert cache._trees == {}
 
 
 # ── New import resolver tests ─────────────────────────────────
@@ -1205,4 +1214,3 @@ class TestEslintParser:
 
         output = '[{"filePath": "/src/clean.js", "messages": []}]'
         assert parse_eslint(output, Path("/src")) == []
-

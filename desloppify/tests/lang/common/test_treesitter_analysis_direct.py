@@ -54,8 +54,8 @@ def test_complexity_function_metrics_helpers(monkeypatch) -> None:
 
     monkeypatch.setattr(function_metrics_mod, "_ensure_parser", fake_ensure_parser)
     monkeypatch.setattr(
-        function_metrics_mod._PARSE_CACHE,
-        "get_or_parse",
+        function_metrics_mod,
+        "get_or_parse_tree",
         lambda *_a, **_k: (b"source", SimpleNamespace(root_node=FakeNode("root"))),
     )
     monkeypatch.setattr(
@@ -81,8 +81,8 @@ def test_complexity_nesting_helpers(monkeypatch) -> None:
         ],
     )
     monkeypatch.setattr(
-        nesting_mod._PARSE_CACHE,
-        "get_or_parse",
+        nesting_mod,
+        "get_or_parse_tree",
         lambda *_a, **_k: (b"source", SimpleNamespace(root_node=root)),
     )
     assert nesting_mod.compute_nesting_depth_ts("src/app.py", SimpleNamespace(grammar="py"), None, None) == 2
@@ -133,8 +133,8 @@ def test_extractors_helpers_cover_params_and_exports(monkeypatch) -> None:
     monkeypatch.setattr(extractors_mod, "_get_parser", lambda _grammar: ("parser", "lang"))
     monkeypatch.setattr(extractors_mod, "_make_query", lambda _lang, source: source)
     monkeypatch.setattr(
-        extractors_mod._PARSE_CACHE,
-        "get_or_parse",
+        extractors_mod,
+        "get_or_parse_tree",
         lambda *_a, **_k: (source, SimpleNamespace(root_node=FakeNode("root"))),
     )
     monkeypatch.setattr(
@@ -199,8 +199,8 @@ def test_unused_import_helpers_and_detection(monkeypatch) -> None:
     monkeypatch.setattr(unused_imports_mod, "_get_parser", lambda _grammar: ("parser", "lang"))
     monkeypatch.setattr(unused_imports_mod, "_make_query", lambda *_a, **_k: "query")
     monkeypatch.setattr(
-        unused_imports_mod._PARSE_CACHE,
-        "get_or_parse",
+        unused_imports_mod,
+        "get_or_parse_tree",
         lambda *_a, **_k: (
             b"import pkg/module\nprint(other)\n",
             SimpleNamespace(root_node=FakeNode("root")),

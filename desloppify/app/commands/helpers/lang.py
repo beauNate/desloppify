@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -58,15 +57,8 @@ EXTRA_ROOT_MARKERS = (
 )
 
 
-def _cache_once(fn: Callable[[], tuple[str, ...]]) -> Callable[[], tuple[str, ...]]:
-    """Cache a zero-arg function once while preserving cache_clear for tests."""
-    cached = lru_cache(maxsize=1)(fn)
-    return cached
-
-
-@_cache_once
 def _lang_config_markers() -> tuple[str, ...]:
-    """Collect project-root marker files from language plugins + fallback markers."""
+    """Collect current root marker files from language plugins + fallbacks."""
     markers = set(EXTRA_ROOT_MARKERS)
 
     for lang_name in lang_api.available_langs():

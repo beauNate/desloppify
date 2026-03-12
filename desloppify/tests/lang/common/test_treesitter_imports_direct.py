@@ -44,8 +44,8 @@ def test_graph_helpers_build_internal_edges_and_builder(monkeypatch, tmp_path: P
     monkeypatch.setattr(graph_mod, "_get_parser", lambda _grammar: ("parser", "language"))
     monkeypatch.setattr(graph_mod, "_make_query", lambda _language, source: source)
     monkeypatch.setattr(
-        graph_mod._PARSE_CACHE,
-        "get_or_parse",
+        graph_mod,
+        "get_or_parse_tree",
         lambda filepath, *_a, **_k: (b"", SimpleNamespace(root_node=filepath)),
     )
     matches = {

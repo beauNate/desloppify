@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from ..imports.cache import _PARSE_CACHE
+from ..imports.cache import get_or_parse_tree
 from .complexity_callbacks import make_callback_depth_compute
 from .complexity_shared import ComputeFn, _ensure_parser
 
@@ -52,7 +52,7 @@ def compute_nesting_depth_ts(
 ) -> int | None:
     """Compute max control-flow nesting depth via iterative AST walk."""
     del language
-    cached = _PARSE_CACHE.get_or_parse(filepath, parser, spec.grammar)
+    cached = get_or_parse_tree(filepath, parser, spec.grammar)
     if cached is None:
         return None
     _source, tree = cached

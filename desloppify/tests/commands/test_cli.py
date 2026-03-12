@@ -880,7 +880,6 @@ class TestResolveLang:
         class DummyCfg:
             detect_markers = ["deno.json", "custom.lock"]
 
-        lang_helpers_mod._lang_config_markers.cache_clear()
         monkeypatch.setattr("desloppify.languages.framework.available_langs", lambda: ["dummy"])
         monkeypatch.setattr("desloppify.languages.framework.get_lang", lambda _name: DummyCfg())
 
@@ -888,10 +887,7 @@ class TestResolveLang:
         assert "deno.json" in markers
         assert "custom.lock" in markers
 
-        lang_helpers_mod._lang_config_markers.cache_clear()
-
     def test_lang_config_markers_raises_for_broken_plugin(self, monkeypatch):
-        lang_helpers_mod._lang_config_markers.cache_clear()
         monkeypatch.setattr("desloppify.languages.framework.available_langs", lambda: ["dummy"])
         monkeypatch.setattr(
             "desloppify.languages.framework.get_lang",
@@ -902,7 +898,30 @@ class TestResolveLang:
             lang_helpers_mod._lang_config_markers()
 
         assert "failed to load" in str(exc.value)
-        lang_helpers_mod._lang_config_markers.cache_clear()
+
+    def test_lang_config_markers_refresh_after_plugin_change(self, monkeypatch):
+        class FirstCfg:
+            detect_markers = ["deno.json"]
+
+        class SecondCfg:
+            detect_markers = ["bun.lockb"]
+
+        current_cfg = FirstCfg
+
+        monkeypatch.setattr("desloppify.languages.framework.available_langs", lambda: ["dummy"])
+        monkeypatch.setattr(
+            "desloppify.languages.framework.get_lang",
+            lambda _name: current_cfg(),
+        )
+
+        first_markers = lang_helpers_mod._lang_config_markers()
+        assert "deno.json" in first_markers
+        assert "bun.lockb" not in first_markers
+
+        current_cfg = SecondCfg
+        second_markers = lang_helpers_mod._lang_config_markers()
+        assert "bun.lockb" in second_markers
+        assert "deno.json" not in second_markers
 
     def test_resolve_detection_root_uses_plugin_marker(self, tmp_path, monkeypatch):
         cwd_root = tmp_path / "cwd_project"

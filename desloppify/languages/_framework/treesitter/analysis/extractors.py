@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 from desloppify.engine.detectors.base import ClassInfo, FunctionInfo
 
-from ..imports.cache import _PARSE_CACHE
+from ..imports.cache import get_or_parse_tree
 from ..imports.normalize import normalize_body
 
 if TYPE_CHECKING:
@@ -132,7 +132,7 @@ def ts_extract_functions(
     functions: list[FunctionInfo] = []
 
     for filepath in file_list:
-        cached = _PARSE_CACHE.get_or_parse(filepath, parser, spec.grammar)
+        cached = get_or_parse_tree(filepath, parser, spec.grammar)
         if cached is None:
             continue
         source, tree = cached
@@ -196,7 +196,7 @@ def ts_extract_classes(
     classes: list[ClassInfo] = []
 
     for filepath in file_list:
-        cached = _PARSE_CACHE.get_or_parse(filepath, parser, spec.grammar)
+        cached = get_or_parse_tree(filepath, parser, spec.grammar)
         if cached is None:
             continue
         source, tree = cached

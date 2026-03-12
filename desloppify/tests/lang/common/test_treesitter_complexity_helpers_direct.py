@@ -29,8 +29,8 @@ def test_make_callback_depth_compute_returns_depth_for_nested_closures(monkeypat
     fake_tree = SimpleNamespace(root_node=root)
     monkeypatch.setattr(callbacks_mod, "_ensure_parser", _fake_ensure)
     monkeypatch.setattr(
-        callbacks_mod._PARSE_CACHE,
-        "get_or_parse",
+        callbacks_mod,
+        "get_or_parse_tree",
         lambda *_args, **_kwargs: ("src", fake_tree),
     )
 
@@ -48,8 +48,8 @@ def test_make_callback_depth_compute_returns_none_for_missing_or_shallow(monkeyp
     shallow_tree = SimpleNamespace(root_node=_FakeNode("program", [_FakeNode("function_expression")]))
     monkeypatch.setattr(callbacks_mod, "_ensure_parser", _fake_ensure)
     monkeypatch.setattr(
-        callbacks_mod._PARSE_CACHE,
-        "get_or_parse",
+        callbacks_mod,
+        "get_or_parse_tree",
         lambda *_args, **_kwargs: ("src", shallow_tree),
     )
 

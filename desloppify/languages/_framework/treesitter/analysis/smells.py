@@ -11,7 +11,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from .. import PARSE_INIT_ERRORS
-from ..imports.cache import _PARSE_CACHE
+from ..imports.cache import get_or_parse_tree
 from .extractors import _get_parser
 
 if TYPE_CHECKING:
@@ -61,7 +61,7 @@ def detect_empty_catches(
 
     entries: list[dict] = []
     for filepath in file_list:
-        cached = _PARSE_CACHE.get_or_parse(filepath, parser, spec.grammar)
+        cached = get_or_parse_tree(filepath, parser, spec.grammar)
         if cached is None:
             continue
         _source, tree = cached
@@ -154,7 +154,7 @@ def detect_unreachable_code(
 
     entries: list[dict] = []
     for filepath in file_list:
-        cached = _PARSE_CACHE.get_or_parse(filepath, parser, spec.grammar)
+        cached = get_or_parse_tree(filepath, parser, spec.grammar)
         if cached is None:
             continue
         _source, tree = cached

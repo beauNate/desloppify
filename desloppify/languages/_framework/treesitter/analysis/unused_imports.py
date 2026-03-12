@@ -11,7 +11,7 @@ import re
 from typing import TYPE_CHECKING
 
 from .. import PARSE_INIT_ERRORS
-from ..imports.cache import _PARSE_CACHE
+from ..imports.cache import get_or_parse_tree
 from .extractors import _get_parser, _make_query, _node_text, _run_query, _unwrap_node
 
 if TYPE_CHECKING:
@@ -41,7 +41,7 @@ def detect_unused_imports(
     entries: list[dict] = []
 
     for filepath in file_list:
-        cached = _PARSE_CACHE.get_or_parse(filepath, parser, spec.grammar)
+        cached = get_or_parse_tree(filepath, parser, spec.grammar)
         if cached is None:
             continue
         source, tree = cached
